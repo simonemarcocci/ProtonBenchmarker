@@ -1,0 +1,39 @@
+#include "services_microboone.fcl"
+#include "messageservice.fcl"
+#include "time_memory_tracker_microboone.fcl"
+
+process_name: recobenchmarker
+
+services:
+{
+
+  TFileService:   {fileName: "reconstructionInformation.root"}
+  TimeTracker:    @local::microboone_time_tracker
+  MemoryTracker:  @local::microboone_memory_tracker
+  @table::microboone_simulation_services
+
+} # services
+
+physics:
+{
+
+  analyzers:
+  {
+
+    recobenchmarker:
+    {
+
+      module_type:  "RecoBenchmarker"
+      TrackLabel:   "pandoraNu"
+      ShowerLabel:  "pandoraNu"
+
+    }
+
+  }
+
+  analysis:  [recobenchmarker]
+  end_paths: [ analysis ]
+
+} # physics
+
+services.DetectorClocksService.InheritClockConfig: false
