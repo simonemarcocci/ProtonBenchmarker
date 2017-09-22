@@ -20,6 +20,11 @@
 
 // LArSoft includes
 #include "lardataobj/RecoBase/Track.h"
+#include "lardataobj/RecoBase/Shower.h"
+#include "nusimdata/SimulationBase/MCParticle.h"
+
+// local includes
+#include "uboone/RecoBenchmarker/Algos/recoBenchmarkerUtility.h"
 
 namespace recohelper {
   class RecoBenchmarker;
@@ -44,13 +49,20 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
     // Selected optional functions.
     void beginJob() override;
     void endJob() override;
-    void reconfigure(fhicl::ParameterSet const & p) override;
 
   private:
     // fcl input parameters
     std::string fTrackLabel;
- //   std::string fShowerLabel;
+    std::string fShowerLabel;
 
+    bool isDebug = false;
+
+    rbutil::recoBenchmarkerUtility _rbutilInstance;
+
+    TLorentzVector thisMcpMomentum;
+    TLorentzVector nextMcpMomentum;
+   
+    float thisNextMcpAngle;
 };
 
 
@@ -58,13 +70,10 @@ recohelper::RecoBenchmarker::RecoBenchmarker(fhicl::ParameterSet const & p)
   :
     EDAnalyzer(p)  // ,
     // More initializers here.
-{}
-
-void recohelper::RecoBenchmarker::reconfigure(fhicl::ParameterSet const & p)
 {
 
   fTrackLabel = p.get<std::string> ("TrackLabel");
- // fShowerLabel = p.get<std::string> ("ShowerLabel");
+  fShowerLabel = p.get<std::string> ("ShowerLabel");
 
 }
 
@@ -76,20 +85,61 @@ void recohelper::RecoBenchmarker::beginJob()
 void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 {
 
-  if (e.isRealData() == false) return;
+  if (e.isRealData() == true) return;
+
+  // get handles to objects of interest
 
   art::ValidHandle< std::vector<recob::Track> > trackHandle = 
-    e.getValidHandle< std::vector< recob::Track> >(fTrackLabel);
-/*
-  art::Handle< std::vector<recob::Shower> > showerHandle =
-    e.getValidHandle< std::vector< recob::Shower> >(fShowerLabel);
+    e.getValidHandle< std::vector<recob::Track> >(fTrackLabel);
 
-  art::Handle< std::vector<simb::MCParticle> > mcParticleHandle =
-    e.getValidHandle< std::vector< simb::MCParticle> >("largeant"); 
-*/
+  art::ValidHandle< std::vector<recob::Shower> > showerHandle =
+    e.getValidHandle< std::vector<recob::Shower> >(fShowerLabel);
+
+  art::Handle< std::vector<simb::MCParticle> > mcParticleHandle; 
+  std::vector< art::Ptr<simb::MCParticle> > mcList;
+  if (e.getByLabel("largeant", mcParticleHandle))
+      art::fill_ptr_vector(mcList, mcParticleHandle); 
+
   for (auto const& track : (*trackHandle)) {
 
-    std::cout << "I found a track with length << " << track.Length() << std::endl;
+    std::cout << "I found a track with length " << track.Length() << std::endl;
+
+  }
+
+  for (auto const& shower : (*showerHandle)){
+
+    std::cout << "I found a shower with length " << shower.Length() << std::endl;
+
+  }
+
+  for (size_t i = 0; i < mcList.size(); i++){
+    
+    auto const & thisMcp = mcList.at(i);
+    if (thisMcp->Process() != "primary") continue;
+
+    if (isDebug == true){
+      std::cout << "---- MCParticle Information ----"
+        << "\nTrack ID   : " << thisMcp->TrackId() 
+        << "\nPdgCode    : " << thisMcp->PdgCode()
+        << "\nProcess    : " << thisMcp->Process()
+        << "\nStatusCode : " << thisMcp->StatusCode()
+        << "\nMother Pdg : " << thisMcp->Mother()
+        << "\nPx, Py, Pz : " << thisMcp->Px() << ", " << thisMcp->Py() << ", " << thisMcp->Pz()
+        << std::endl;
+    }
+
+    thisMcpMomentum = thisMcp->Momentum();
+
+    for (size_t j = i+1; j < mcList.size(); j++){
+
+      auto const & nextMcp = mcList.at(j); 
+      
+      nextMcpMomentum = nextMcp->Momentum();
+
+      thisNextMcpAngle = _rbutilInstance.getAngle(thisMcp, nextMcp);
+
+      std::cout << thisNextMcpAngle << std::endl;
+    }
 
   }
 
