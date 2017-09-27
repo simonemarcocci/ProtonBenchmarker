@@ -14,14 +14,20 @@
 #include "art/Framework/Principal/Handle.h"
 #include "art/Framework/Principal/Run.h"
 #include "art/Framework/Principal/SubRun.h"
+#include "art/Framework/Services/Optional/TFileService.h"
 #include "canvas/Utilities/InputTag.h"
 #include "fhiclcpp/ParameterSet.h"
 #include "messagefacility/MessageLogger/MessageLogger.h"
+#include "canvas/Persistency/Common/FindManyP.h"
 
 // LArSoft includes
 #include "lardataobj/RecoBase/Track.h"
 #include "lardataobj/RecoBase/Shower.h"
 #include "nusimdata/SimulationBase/MCParticle.h"
+#include "lardataobj/AnalysisBase/BackTrackerMatchingData.h"
+
+// ROOT includes
+#include "TTree.h"
 
 // local includes
 #include "uboone/RecoBenchmarker/Algos/recoBenchmarkerUtility.h"
@@ -62,7 +68,18 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
     TLorentzVector thisMcpMomentum;
     TLorentzVector nextMcpMomentum;
    
+    TTree* recoTree;
+
+    int fEvent;
+    int fRun;
+    int fSubRun;
+
+    std::vector<float> thisNextMcpAngles;
     float thisNextMcpAngle;
+    std::vector<float> thisNextMcpAnglesXZ;
+    float thisNextMcpAngleXZ;
+    
+
 };
 
 
@@ -79,7 +96,18 @@ recohelper::RecoBenchmarker::RecoBenchmarker(fhicl::ParameterSet const & p)
 
 void recohelper::RecoBenchmarker::beginJob()
 {
-  // Implementation of optional member function here.
+
+  art::ServiceHandle< art::TFileService > tfs;
+
+  recoTree = tfs->make<TTree>("recotree", "recotree");
+
+  // define branches
+  recoTree->Branch("Event", &fEvent, "Event/I");
+  recoTree->Branch("SubRun", &fSubRun, "SubRun/I");
+  recoTree->Branch("Run", &fRun, "Run/I");
+  recoTree->Branch("thisNextMcpAngles", &thisNextMcpAngles);
+  recoTree->Branch("thisNextMcpAnglesXZ", &thisNextMcpAnglesXZ);
+
 }
 
 void recohelper::RecoBenchmarker::analyze(art::Event const & e)
@@ -87,10 +115,16 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 
   if (e.isRealData() == true) return;
 
+  fEvent  = e.id().event();
+  fRun    = e.run();
+  fSubRun = e.subRun();
+
   // get handles to objects of interest
 
   art::ValidHandle< std::vector<recob::Track> > trackHandle = 
     e.getValidHandle< std::vector<recob::Track> >(fTrackLabel);
+
+  art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromTracks(trackHandle, e, "pandoraNuTruthMatch");
 
   art::ValidHandle< std::vector<recob::Shower> > showerHandle =
     e.getValidHandle< std::vector<recob::Shower> >(fShowerLabel);
@@ -104,6 +138,12 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 
     std::cout << "I found a track with length " << track.Length() << std::endl;
 
+    std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromTracks.at(track.ID());
+    for (auto const& mcp: mcps){
+
+      std::cout << "matched mcp with ID " << mcp.get()->TrackId() << std::endl;
+    
+    }
   }
 
   for (auto const& shower : (*showerHandle)){
@@ -112,9 +152,12 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 
   }
 
+  thisNextMcpAngles.clear();
+  thisNextMcpAnglesXZ.clear();
+
   for (size_t i = 0; i < mcList.size(); i++){
     
-    auto const & thisMcp = mcList.at(i);
+    const art::Ptr<simb::MCParticle>& thisMcp = mcList.at(i);
     if (thisMcp->Process() != "primary") continue;
 
     if (isDebug == true){
@@ -132,17 +175,23 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 
     for (size_t j = i+1; j < mcList.size(); j++){
 
-      auto const & nextMcp = mcList.at(j); 
-      
+      const art::Ptr<simb::MCParticle>& nextMcp = mcList.at(j); 
+      if (nextMcp->Process() != "primary") continue;
+
       nextMcpMomentum = nextMcp->Momentum();
 
-      thisNextMcpAngle = _rbutilInstance.getAngle(thisMcp, nextMcp);
+      thisNextMcpAngle = _rbutilInstance.getAngle(thisMcp, nextMcp, _rbutilInstance, "no");
+      thisNextMcpAngles.push_back(thisNextMcpAngle);
+      
+      thisNextMcpAngleXZ = _rbutilInstance.getAngle(thisMcp, nextMcp, _rbutilInstance, "xz");
+      thisNextMcpAnglesXZ.push_back(thisNextMcpAngleXZ);
 
-      std::cout << thisNextMcpAngle << std::endl;
     }
+
 
   }
 
+  recoTree->Fill();
 }
 
 void recohelper::RecoBenchmarker::endJob()
