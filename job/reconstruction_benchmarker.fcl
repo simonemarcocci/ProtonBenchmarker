@@ -25,7 +25,9 @@ physics:
 
       module_type:  "RecoBenchmarker"
       TrackLabel:   "pandoraNu"
-      ShowerLabel:  "pandoraNu"
+      TrackTruthLabel: "pandoraNuTruthMatch"
+      ShowerLabel:  "showerrecopandora"
+      ShowerTruthLabel: "showerrecopandoraTruthMatch"
 
     }
 
