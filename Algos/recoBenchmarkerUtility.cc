@@ -2,36 +2,55 @@
 
 namespace rbutil{
 
-  float recoBenchmarkerUtility::getAngle(const art::Ptr<simb::MCParticle>& a, const art::Ptr<simb::MCParticle>& b, recoBenchmarkerUtility rbutil, std::string proj){
+  std::vector<double> recoBenchmarkerUtility::getMomentumVector(const art::Ptr< simb::MCParticle >& a){
+
+    std::vector<double> aMom;
+    aMom = {a->Px(), a->Py(), a->Pz()};
+
+    return aMom;
+
+  }
+
+  std::vector<double> recoBenchmarkerUtility::getMomentumVector(const recob::Track& a){
+
+    std::vector<double> aMom;
+    auto const& smv = a.StartMomentumVector();
+    aMom = {smv.X(), smv.Y(), smv.Z()};
+
+    return aMom;
+
+  }
+
+  float recoBenchmarkerUtility::getAngle(const std::vector<double> a, const std::vector<double> b, recoBenchmarkerUtility rbutil, std::string proj){
 
     std::vector<double> aMom;
     std::vector<double> bMom;
 
     if (proj == "no"){
 
-      aMom = {a->Px(), a->Py(), a->Pz()};
-      bMom = {b->Px(), b->Py(), b->Pz()};
+      aMom = {a.at(0), a.at(1), a.at(2)};
+      bMom = {b.at(0), b.at(1), b.at(2)};
 
     }
 
     else if ((proj == "xz") | (proj == "zx")){
 
-      aMom = {a->Px(), a->Pz()};
-      bMom = {b->Px(), b->Pz()};
+      aMom = {a.at(0), a.at(2)};
+      bMom = {b.at(0), b.at(2)};
 
     }
 
     else if ((proj == "xy") | (proj == "yx")){
 
-      aMom = {a->Px(), a->Py()};
-      bMom = {b->Px(), b->Py()};
+      aMom = {a.at(0), a.at(1)};
+      bMom = {b.at(0), b.at(1)};
 
     }
 
     else if ((proj == "yz") | (proj == "zy")){
 
-      aMom = {a->Py(), a->Pz()};
-      bMom = {b->Py(), b->Pz()};
+      aMom = {a.at(1), a.at(2)};
+      bMom = {b.at(1), b.at(2)};
 
     }
     else
@@ -48,9 +67,9 @@ namespace rbutil{
 
   std::vector<float> recoBenchmarkerUtility::getUnitVector(std::vector<double> a){
 /*
-    float ax = a->Px();
-    float ay = a->Py();
-    float az = a->Pz();
+    float ax = a.at(0);
+    float ay = a.at(1);
+    float az = a.at(2);
 
     float aMag = std::sqrt(ax*ax + ay*ay + az*az);
 

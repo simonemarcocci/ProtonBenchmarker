@@ -65,9 +65,11 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
 
     rbutil::recoBenchmarkerUtility _rbutilInstance;
 
-    TLorentzVector thisMcpMomentum;
-    TLorentzVector nextMcpMomentum;
-   
+    std::vector<double> thisMcpMomentum;
+    std::vector<double> nextMcpMomentum;
+    std::vector<double> thisRecoMomentum;
+    std::vector<double> nextRecoMomentum;
+
     TTree* recoTree;
 
     int fEvent;
@@ -78,7 +80,11 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
     float thisNextMcpAngle;
     std::vector<float> thisNextMcpAnglesXZ;
     float thisNextMcpAngleXZ;
-    
+    std::vector<float> thisNextRecoAngles;
+    float thisNextRecoAngle;
+    std::vector<float> thisNextRecoAnglesXZ;
+    float thisNextRecoAngleXZ;
+
 
 };
 
@@ -107,6 +113,8 @@ void recohelper::RecoBenchmarker::beginJob()
   recoTree->Branch("Run", &fRun, "Run/I");
   recoTree->Branch("thisNextMcpAngles", &thisNextMcpAngles);
   recoTree->Branch("thisNextMcpAnglesXZ", &thisNextMcpAnglesXZ);
+  recoTree->Branch("thisNextRecoAngles", &thisNextRecoAngles);
+  recoTree->Branch("thisNextRecoAnglesXZ", &thisNextRecoAnglesXZ);
 
 }
 
@@ -134,11 +142,27 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
   if (e.getByLabel("largeant", mcParticleHandle))
       art::fill_ptr_vector(mcList, mcParticleHandle); 
 
-  for (auto const& track : (*trackHandle)) {
+  for (auto const& thisTrack : (*trackHandle)) {
 
-    std::cout << "I found a track with length " << track.Length() << std::endl;
+    thisRecoMomentum = _rbutilInstance.getMomentumVector(thisTrack);
 
-    std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromTracks.at(track.ID());
+    // pick up all other reconstructed particles in the event for angular studies
+    for (size_t i = 1; i < trackHandle->size(); i++){ 
+      auto const& nextTrack = *(&thisTrack + i);
+    
+      nextRecoMomentum = _rbutilInstance.getMomentumVector(nextTrack);
+
+      thisNextRecoAngle = _rbutilInstance.getAngle(thisRecoMomentum, nextRecoMomentum, _rbutilInstance, "no");
+      thisNextRecoAngles.push_back(thisNextRecoAngle);
+      
+      thisNextRecoAngleXZ = _rbutilInstance.getAngle(thisRecoMomentum, nextRecoMomentum, _rbutilInstance, "xz");
+      thisNextRecoAnglesXZ.push_back(thisNextRecoAngleXZ);
+
+    }
+
+    std::cout << "I found a track with length " << thisTrack.Length() << std::endl;
+
+    std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromTracks.at(thisTrack.ID());
     for (auto const& mcp: mcps){
 
       std::cout << "matched mcp with ID " << mcp.get()->TrackId() << std::endl;
@@ -171,19 +195,19 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
         << std::endl;
     }
 
-    thisMcpMomentum = thisMcp->Momentum();
+    thisMcpMomentum = _rbutilInstance.getMomentumVector(thisMcp);
 
     for (size_t j = i+1; j < mcList.size(); j++){
 
       const art::Ptr<simb::MCParticle>& nextMcp = mcList.at(j); 
       if (nextMcp->Process() != "primary") continue;
 
-      nextMcpMomentum = nextMcp->Momentum();
+      nextMcpMomentum = _rbutilInstance.getMomentumVector(nextMcp);
 
-      thisNextMcpAngle = _rbutilInstance.getAngle(thisMcp, nextMcp, _rbutilInstance, "no");
+      thisNextMcpAngle = _rbutilInstance.getAngle(thisMcpMomentum, nextMcpMomentum, _rbutilInstance, "no");
       thisNextMcpAngles.push_back(thisNextMcpAngle);
       
-      thisNextMcpAngleXZ = _rbutilInstance.getAngle(thisMcp, nextMcp, _rbutilInstance, "xz");
+      thisNextMcpAngleXZ = _rbutilInstance.getAngle(thisMcpMomentum, nextMcpMomentum, _rbutilInstance, "xz");
       thisNextMcpAnglesXZ.push_back(thisNextMcpAngleXZ);
 
     }

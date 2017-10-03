@@ -3,6 +3,7 @@
 
 // larsoft includes
 #include "nusimdata/SimulationBase/MCParticle.h"
+#include "lardataobj/RecoBase/Track.h"
 #include "canvas/Persistency/Common/Ptr.h"
 
 // ROOT includes
@@ -21,7 +22,11 @@ namespace rbutil{
 
     public:
 
-      float getAngle(const art::Ptr<simb::MCParticle>& a, const art::Ptr<simb::MCParticle>& b, recoBenchmarkerUtility rbutil, std::string proj);
+      std::vector<double> getMomentumVector(const art::Ptr< simb::MCParticle >& a);
+
+      std::vector<double> getMomentumVector(const recob::Track& a);
+
+      float getAngle(const std::vector<double> a, const std::vector<double> b, recoBenchmarkerUtility rbutil, std::string proj);
       
       std::vector<float> getUnitVector(std::vector<double> a); 
 
