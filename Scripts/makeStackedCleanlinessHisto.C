@@ -2,13 +2,15 @@ void makeStackedCleanlinessHisto(){
 
   TCanvas *c1 = new TCanvas("c1", "c1", 500, 500);
 
-  TH1D *h1 = (TH1D*)_file0->Get("recobenchmarker/showerCleanlinessPrimaryProton");
-  TH1D *h2 = (TH1D*)_file0->Get("recobenchmarker/showerCleanlinessPrimaryMuonOrPion");
-  TH1D *h3 = (TH1D*)_file0->Get("recobenchmarker/showerCleanlinessPrimaryElectron");
-  TH1D *h4 = (TH1D*)_file0->Get("recobenchmarker/showerCleanlinessConv");
-  TH1D *h5 = (TH1D*)_file0->Get("recobenchmarker/showerCleanlinessInelastic");
-  TH1D *h6 = (TH1D*)_file0->Get("recobenchmarker/showerCleanlinessMuIoni");
-  TH1D *h7 = (TH1D*)_file0->Get("recobenchmarker/showerCleanlinessOther");
+  TString trackorshower("track");
+
+  TH1D *h1 = (TH1D*)_file0->Get("recobenchmarker/"+trackorshower+"CleanlinessPrimaryProton");
+  TH1D *h2 = (TH1D*)_file0->Get("recobenchmarker/"+trackorshower+"CleanlinessPrimaryMuonOrPion");
+  TH1D *h3 = (TH1D*)_file0->Get("recobenchmarker/"+trackorshower+"CleanlinessPrimaryElectron");
+  TH1D *h4 = (TH1D*)_file0->Get("recobenchmarker/"+trackorshower+"CleanlinessConv");
+  TH1D *h5 = (TH1D*)_file0->Get("recobenchmarker/"+trackorshower+"CleanlinessInelastic");
+  TH1D *h6 = (TH1D*)_file0->Get("recobenchmarker/"+trackorshower+"CleanlinessMuIoni");
+  TH1D *h7 = (TH1D*)_file0->Get("recobenchmarker/"+trackorshower+"CleanlinessOther");
 
   h1->SetFillColor(kGreen+3);
   h2->SetFillColor(kGreen-3);
@@ -28,7 +30,22 @@ void makeStackedCleanlinessHisto(){
   hs->Add(h7);
 
   hs->Draw();
+  hs->GetXaxis()->SetTitle("Reco/Truth matching cleanliness");
+  hs->SetMaximum(hs->GetMaximum()*1.1);
 
-  hs->GetXaxis()->SetTitle("Reco/Truth matching completeness");
+  TLegend *leg = new TLegend(0.15, 0.5, 0.5, 0.85);
+  leg->AddEntry(h1, "Primary Proton");
+  leg->AddEntry(h2, "Primary Mu/Pi");
+  leg->AddEntry(h3, "Primary Electron");
+  leg->AddEntry(h4, "Conv");
+  leg->AddEntry(h5, "Inelastic");
+  leg->AddEntry(h6, "MuIoni");
+  leg->AddEntry(h7, "Other");
+
+  leg->SetFillStyle(0);
+  leg->SetBorderSize(0);
+
+  leg->Draw();
+  
   c1->Modified();
 }
