@@ -28,6 +28,8 @@ physics:
       TrackTruthLabel: "pandoraNuTruthMatch"
       ShowerLabel:  "showerrecopandora"
       ShowerTruthLabel: "showerrecopandoraTruthMatch"
+      ClusterLabel: "pandoraNu"
+      HitLabel: "gaushit"
 
     }
 

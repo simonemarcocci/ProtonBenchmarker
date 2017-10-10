@@ -23,6 +23,8 @@
 // LArSoft includes
 #include "lardataobj/RecoBase/Track.h"
 #include "lardataobj/RecoBase/Shower.h"
+#include "lardataobj/RecoBase/Cluster.h"
+#include "lardataobj/RecoBase/Hit.h"
 #include "nusimdata/SimulationBase/MCParticle.h"
 #include "lardataobj/AnalysisBase/BackTrackerMatchingData.h"
 
@@ -65,6 +67,8 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
     std::string fTrackTruthLabel;
     std::string fShowerLabel;
     std::string fShowerTruthLabel;
+    std::string fClusterLabel;
+    std::string fHitLabel;
 
     bool isDebug = false;
 
@@ -79,17 +83,17 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
     int fRun;
     int fSubRun;
 
-    // particle counters
-
-    int nParticlesAboveThreshold;
-    int nProtonsAboveThreshold;
-    int nMuons;
-    int nPions;
-    int nElectrons;
-
     int nimID;
+    int recoNimID;
+
+    // hit list stuff
+    std::vector< std::pair<int, float> >allHitPositions;
+    TH1D* hitMatchScore;
 
     std::vector<int> matchIDChecker;
+
+    // trueVertexXZPosition
+    std::vector<float> trueVertexXZPosition;
 
     // matching information
     std::vector<int> isRecoTrackTruthMatched;
@@ -109,41 +113,48 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
     std::vector<double> nextRecoMomentum;
     std::vector<double> nimMatchedMomentum;
 
+    // Nim == Neutrino Induced Muon
     std::vector<float> thisNimMcpAngles;
     float thisNimMcpAngle;
     std::vector<float> thisNimMcpAnglesXZ;
     float thisNimMcpAngleXZ;
-    std::vector<float> thisNimMatchedAngles;
-    float thisNimMatchedAngle;
-    std::vector<float> thisNimMatchedAnglesXZ;
-    float thisNimMatchedAngleXZ;
+    std::vector<float> thisNimMatchedMcpAngles;
+    float thisNimMatchedMcpAngle;
+    std::vector<float> thisNimMatchedMcpAnglesXZ;
+    float thisNimMatchedMcpAngleXZ;
     float thisZmatchedAngleYZ;
-    float thisZMcpAngleYZ;
+    float thisZDirMcpAngleYZ;
 
-    TH2D* matchedLengthVersusAngle;
-    TH2D* mcpLengthVersusAngle;
-    TH2D* lengthVersusAngleEfficiency;
+    // efficiency plots and prerequisites
+    TH1D* muMatchedMcpMomentum;
+    TH1D* muMcpMomentum;
+    TH1D* muMomentumEfficiency;
 
-    TH1D* matchedProjectedLength;
-    TH1D* mcpProjectedLength;
-    TH1D* trackLengthEfficiency;
+    TH2D* allMatchedMcpLengthAngle;
+    TH2D* allMcpLengthAngleYZ;
+    TH2D* allLengthAngleEfficiency;
 
-    TH1D* matchedProjectedAngle;
-    TH1D* mcpProjectedAngle;
-    TH1D* trackAngleEfficiency;
+    TH1D* allMatchedMcpProjectedLength;
+    TH1D* allMcpProjectedLength;
+    TH1D* allProjectedLengthEfficiency;
 
-    TH2D* mupMatchedAngleVersusPMom;
-    TH2D* mupMcpAngleVersusPMom;
+    TH1D* allMatchedMcpProjectedAngle;
+    TH1D* allMcpProjectedAngle;
+    TH1D* allProjectedAngleEfficiency;
+
+    TH2D* mupMatchedMcpAnglePMom;
+    TH2D* mupMcpAnglePMom;
     TH2D* mupAngleMomentumEfficiency;
 
-    TH1D* pMatchedProjectedMomentum;
+    TH1D* pMatchedMcpProjectedMomentum;
     TH1D* pMcpProjectedMomentum;
-    TH1D* pMomentumEfficiency;
+    TH1D* pProjectedMomentumEfficiency;
 
-    TH1D* pMatchedProjectedAngle;
+    TH1D* pMatchedMcpProjectedAngle;
     TH1D* pMcpProjectedAngle;
-    TH1D* pAngleEfficiency;
+    TH1D* pProjectedAngleEfficiency;
 
+    // cleanliness plots
     TH1D* showerCleanlinessPrimaryProton;
     TH1D* showerCleanlinessPrimaryMuonOrPion;
     TH1D* showerCleanlinessPrimaryElectron;
@@ -173,6 +184,8 @@ recohelper::RecoBenchmarker::RecoBenchmarker(fhicl::ParameterSet const & p)
   fTrackTruthLabel = p.get<std::string> ("TrackTruthLabel");
   fShowerLabel = p.get<std::string> ("ShowerLabel");
   fShowerTruthLabel = p.get<std::string> ("ShowerTruthLabel");
+  fClusterLabel = p.get<std::string> ("ClusterLabel");
+  fHitLabel = p.get<std::string> ("HitLabel");
 
 }
 
@@ -189,19 +202,28 @@ void recohelper::RecoBenchmarker::beginJob()
   recoTree->Branch("isRecoTrackTruthMatched", &isRecoTrackTruthMatched);
   recoTree->Branch("isRecoShowerTruthMatched", &isRecoShowerTruthMatched);
 
-  recoTree->Branch("thisNimMatchedAngles", &thisNimMatchedAngles);
-  recoTree->Branch("thisNimMatchedAnglesXZ", &thisNimMatchedAnglesXZ);
-  recoTree->Branch("thisRecoLength", &thisRecoLength);
-
+  // mcp information
   recoTree->Branch("thisNimMcpAngles", &thisNimMcpAngles);
   recoTree->Branch("thisNimMcpAnglesXZ", &thisNimMcpAnglesXZ);
   recoTree->Branch("thisMcpLength", &thisMcpLength);
 
-  matchedLengthVersusAngle = tfs->make<TH2D>("matchedLengthVersusAngle", ";#theta_{YZ} (degrees); Length (cm)", 20, 0, 180, 10, 0, 10);
-  mcpLengthVersusAngle = tfs->make<TH2D>("mcpLengthVersusAngle", ";#theta_{YZ} (degrees); Length (cm)", 20, 0, 180, 10, 0, 10);
+  // matched mcp information
+  recoTree->Branch("thisNimMatchedMcpAngles", &thisNimMatchedMcpAngles);
+  recoTree->Branch("thisNimMatchedMcpAnglesXZ", &thisNimMatchedMcpAnglesXZ);
+  
+  // reconstructed information
+  recoTree->Branch("thisRecoLength", &thisRecoLength);
 
-  mupMatchedAngleVersusPMom = tfs->make<TH2D>("mupMatchedAngleVersusPMom", ";#theta^{#mup}_{XZ} (degrees) ;P_{p} (Gev)", 20, 0, 180, 20, 0, 1);
-  mupMcpAngleVersusPMom = tfs->make<TH2D>("mupMcpAngleVersusPMom", ";#theta^{#mup}_{XZ};P_{p}", 20, 0, 180, 20, 0, 1);
+  hitMatchScore = tfs->make<TH1D>("hitMatchScore", ";hitMatchScore Score;", 2, 0, 2);
+
+  muMatchedMcpMomentum = tfs->make<TH1D>("muMatchedMcpMomentum", ";#mu Momentum;", 20, 0, 3.5);
+  muMcpMomentum = tfs->make<TH1D>("muMcpMomentum", ";#mu Momentum;", 20, 0, 3.5);
+
+  allMatchedMcpLengthAngle = tfs->make<TH2D>("allMatchedMcpLengthAngle", ";#theta_{YZ} (degrees); Length (cm)", 20, 0, 180, 10, 0, 10);
+  allMcpLengthAngleYZ = tfs->make<TH2D>("allMcpLengthAngleYZ", ";#theta_{YZ} (degrees); Length (cm)", 20, 0, 180, 10, 0, 10);
+
+  mupMatchedMcpAnglePMom = tfs->make<TH2D>("mupMatchedMcpAnglePMom", ";#theta^{#mup}_{XZ} (degrees) ;P_{p} (Gev)", 20, 0, 180, 20, 0, 1);
+  mupMcpAnglePMom = tfs->make<TH2D>("mupMcpAnglePMom", ";#theta^{#mup}_{XZ};P_{p}", 20, 0, 180, 20, 0, 1);
 
   // cleanliness plots
   showerCleanlinessPrimaryProton = tfs->make<TH1D>("showerCleanlinessPrimaryProton", ";cleanliness;", 20, 0, 1);
@@ -236,24 +258,18 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 
   isRecoTrackTruthMatched.clear(); 
   isRecoShowerTruthMatched.clear();
-
   matchIDChecker.clear();
-
-  nParticlesAboveThreshold = 0;
-  nProtonsAboveThreshold = 0;
-  nMuons = 0;
-  nPions = 0;
-  nElectrons = 0;
   thisNimMcpAngles.clear();
   thisNimMcpAnglesXZ.clear();
   thisMcpMomentum.clear();
   nimMcpMomentum.clear();
   thisMcpLength.clear();
-
-  thisNimMatchedAngles.clear();
-  thisNimMatchedAnglesXZ.clear();
+  thisNimMatchedMcpAngles.clear();
+  thisNimMatchedMcpAnglesXZ.clear();
   nimMatchedMomentum.clear();
   thisRecoLength.clear();
+  trueVertexXZPosition.clear();
+  allHitPositions.clear();
 
   // get handles to objects of interest
 
@@ -272,28 +288,47 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
   if (e.getByLabel("largeant", mcParticleHandle))
     art::fill_ptr_vector(mcList, mcParticleHandle); 
 
+  art::ValidHandle< std::vector< recob::Cluster > > clusterHandle = 
+    e.getValidHandle< std::vector< recob::Cluster > >(fClusterLabel);
+
+  art::FindManyP<recob::Hit> hitsFromClusters(clusterHandle, e, fClusterLabel);
+
+  art::ValidHandle< std::vector< recob::Hit > > hitHandle = 
+    e.getValidHandle< std::vector< recob::Hit > >(fHitLabel);
+
+  //---------------------------------
+  // MCParticles
+  //---------------------------------
+
+
+  // first loop muons to find true neutrino induced muon (NIM)
   nimID = -1;
-  // loop mcps to find neutrino induced muon id
   for (size_t i = 0; i < mcList.size();i++){
 
     const art::Ptr< simb::MCParticle >& thisMcp = mcList.at(i);
-    if (thisMcp->PdgCode() == 13 && thisMcp->Process() == "primary") {
+    if (std::abs(thisMcp->PdgCode()) == 13 && thisMcp->Process() == "primary" && _rbutilInstance.isInTPC(thisMcp) == true) {
       nimID = thisMcp->TrackId();
       nimMcpMomentum = _rbutilInstance.getMomentumVector(thisMcp);
+      muMcpMomentum->Fill(thisMcp->P());
+      trueVertexXZPosition = {(float)thisMcp->Vx(), (float)thisMcp->Vz()};
     }
   }
 
+  // then the other particles...
   for (size_t i = 0; i < mcList.size(); i++){
 
     const art::Ptr<simb::MCParticle>& thisMcp = mcList.at(i);
+    
+    // only interested in tracks for now...
     if ((thisMcp->Process() != "primary")
         || (std::abs(thisMcp->PdgCode()) == 2112)
         || (std::abs(thisMcp->PdgCode()) == 14)
         || (std::abs(thisMcp->PdgCode()) == 12)
         || (std::abs(thisMcp->PdgCode()) == 22)
         || (std::abs(thisMcp->PdgCode()) == 111)
-        || (std::abs(thisMcp->PdgCode()) == 11) // remove anything which is shower like for now
-        || (std::abs(thisMcp->PdgCode()) == 2212 && thisMcp->P() < 0.2)) continue;
+        || (std::abs(thisMcp->PdgCode()) == 11) 
+        || (std::abs(thisMcp->PdgCode()) == 2212 && thisMcp->P() < 0.2)
+        || (_rbutilInstance.isInTPC(thisMcp) == false)) continue;
 
     if (isDebug == true){
       std::cout << "---- MCParticle Information ----"
@@ -306,16 +341,6 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
         << std::endl;
     }
 
-    // update counter information
-    if (std::abs(thisMcp->PdgCode()) == 2212)
-      nProtonsAboveThreshold++;
-    if (std::abs(thisMcp->PdgCode()) == 13)
-      nMuons++;
-    if (std::abs(thisMcp->PdgCode()) == 211)
-      nPions++;
-    if (std::abs(thisMcp->PdgCode()) == 11)
-      nElectrons++;
-
     thisMcpLength.push_back(thisMcp->Trajectory().TotalLength());
     thisMcpMomentum = _rbutilInstance.getMomentumVector(thisMcp);
 
@@ -324,8 +349,8 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 
       std::vector<double> zDir = {0,0,1};
 
-      thisZMcpAngleYZ = _rbutilInstance.getAngle(zDir, thisMcpMomentum, _rbutilInstance, "yz");
-      mcpLengthVersusAngle->Fill(thisZMcpAngleYZ, thisMcp->Trajectory().TotalLength());
+      thisZDirMcpAngleYZ = _rbutilInstance.getAngle(zDir, thisMcpMomentum, _rbutilInstance, "yz");
+      allMcpLengthAngleYZ->Fill(thisZDirMcpAngleYZ, thisMcp->Trajectory().TotalLength());
 
     }
 
@@ -340,26 +365,31 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
         _rbutilInstance.getAngle(thisMcpMomentum, nimMcpMomentum, _rbutilInstance, "xz");
       thisNimMcpAnglesXZ.push_back(thisNimMcpAngleXZ);
 
-      mupMcpAngleVersusPMom->Fill(thisNimMcpAngleXZ, thisMcp->P());
+      mupMcpAnglePMom->Fill(thisNimMcpAngleXZ, thisMcp->P());
 
     }
 
   } // MCParticles
 
-  nParticlesAboveThreshold = nProtonsAboveThreshold + nMuons + nPions + nElectrons;
+
+  //----------------------------
+  // Tracks
+  //----------------------------
 
   // loop tracks and do truth matching to find neutrino induced muon
-  nimID = -1;
+  recoNimID = -1;
+  bool isMatched = false; 
   for (auto const& thisTrack : (*trackHandle)) {
 
     std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromTracks.at(thisTrack.ID());
 
     for (auto const& thisMcp : mcps){
 
-      if (thisMcp->PdgCode() == 13 && thisMcp->Process() == "primary"){
-        nimID = thisMcp->TrackId();
+      if (thisMcp->PdgCode() == 13 && thisMcp->Process() == "primary" && _rbutilInstance.isInTPC(thisMcp) == true && isMatched == false){
+        recoNimID = thisMcp->TrackId();
         nimMatchedMomentum = _rbutilInstance.getMomentumVector(thisMcp);
-
+        muMatchedMcpMomentum->Fill(thisMcp->P());
+        isMatched = true;
       }
 
     }
@@ -372,9 +402,10 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
     thisRecoLength.push_back(thisTrack.Length());
 
     std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromTracks.at(it);
-
     isRecoTrackTruthMatched.push_back(mcps.size());
 
+    // check to make sure two reconstructed tracks aren't matching to the same mcp
+    // i.e. should remove broken tracks
     bool isMatched = false;
     for (auto const& thisMcp : mcps){
 
@@ -388,30 +419,10 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 
       if (isMatched == true) continue;
 
-      if ((thisMcp->Process() != "primary")
-          || (std::abs(thisMcp->PdgCode()) == 2112)
-          || (std::abs(thisMcp->PdgCode()) == 14)
-          || (std::abs(thisMcp->PdgCode()) == 12)
-          || (std::abs(thisMcp->PdgCode()) == 22)
-          || (std::abs(thisMcp->PdgCode()) == 111)
-          || (std::abs(thisMcp->PdgCode()) == 11) // remove anything which is shower like for now
-          || (std::abs(thisMcp->PdgCode()) == 2212 && thisMcp->P() < 0.2)) continue;
-
       auto thisMcpCleanliness = mcpsFromTracks.data(0).at(0)->cleanliness;
-      auto thisMcpCompleteness = mcpsFromTracks.data(0).at(0)->completeness;
+      auto thisMcpCompleteness = mcpsFromTracks.data(0).at(0)->completeness; // gives nonsense
 
-      std::cout << "MATCH CLEANLINESS: " << thisMcpCleanliness << std::endl;
-      std::cout << "MATCH COMPLETENESS: " << thisMcpCompleteness << std::endl;
-
-      std::cout << "---- MCParticle Information ----"
-        << "\nTrack ID   : " << thisMcp->TrackId() 
-        << "\nPdgCode    : " << thisMcp->PdgCode()
-        << "\nProcess    : " << thisMcp->Process()
-        << "\nStatusCode : " << thisMcp->StatusCode()
-        << "\nMother Pdg : " << thisMcp->Mother()
-        << "\nPx, Py, Pz : " << thisMcp->Px() << ", " << thisMcp->Py() << ", " << thisMcp->Pz()
-        << std::endl;
-
+      // filling cleanliness plots
       if (thisMcp->Process() == "primary" && std::abs(thisMcp->PdgCode()) == 2212)
         trackCleanlinessPrimaryProton->Fill(thisMcpCleanliness);
       else if (thisMcp->Process() == "primary" 
@@ -430,6 +441,31 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
         trackCleanlinessMuIoni->Fill(thisMcpCleanliness);
       else trackCleanlinessOther->Fill(thisMcpCleanliness);
 
+      if ((thisMcp->Process() != "primary")
+          || (std::abs(thisMcp->PdgCode()) == 2112)
+          || (std::abs(thisMcp->PdgCode()) == 14)
+          || (std::abs(thisMcp->PdgCode()) == 12)
+          || (std::abs(thisMcp->PdgCode()) == 22)
+          || (std::abs(thisMcp->PdgCode()) == 111)
+          || (std::abs(thisMcp->PdgCode()) == 11) // remove anything which is shower like for now
+          || (std::abs(thisMcp->PdgCode()) == 2212 && thisMcp->P() < 0.2)
+          || (_rbutilInstance.isInTPC(thisMcp)) == false) continue;
+
+      if (isDebug == true){
+      std::cout << "MATCH CLEANLINESS: " << thisMcpCleanliness << std::endl;
+      std::cout << "MATCH COMPLETENESS: " << thisMcpCompleteness << std::endl;
+    
+      std::cout << "---- MCParticle Information ----"
+        << "\nTrack ID   : " << thisMcp->TrackId() 
+        << "\nPdgCode    : " << thisMcp->PdgCode()
+        << "\nProcess    : " << thisMcp->Process()
+        << "\nStatusCode : " << thisMcp->StatusCode()
+        << "\nMother Pdg : " << thisMcp->Mother()
+        << "\nPx, Py, Pz : " << thisMcp->Px() << ", " << thisMcp->Py() << ", " << thisMcp->Pz()
+        << std::endl;
+      }
+
+
       // angular information
 
       thisMatchedMomentum = _rbutilInstance.getMomentumVector(thisMcp); 
@@ -442,31 +478,36 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 
         thisZmatchedAngleYZ = _rbutilInstance.getAngle(zDir, thisMatchedMomentum, _rbutilInstance, "yz");
 
-        matchedLengthVersusAngle->Fill(thisZmatchedAngleYZ, thisMatchedLength);
+        allMatchedMcpLengthAngle->Fill(thisZmatchedAngleYZ, thisMatchedLength);
 
 
       }
 
       // specifically protons
-      if (thisMcp->PdgCode() == 2212 && thisMcp->Process() == "primary" && nimID != -1){
+      if (thisMcp->PdgCode() == 2212 && thisMcp->Process() == "primary" && recoNimID != -1){
 
+        thisNimMatchedMcpAngle = _rbutilInstance.getAngle(nimMatchedMomentum, thisMatchedMomentum, _rbutilInstance, "no");
+        thisNimMatchedMcpAngles.push_back(thisNimMatchedMcpAngle);
 
-        thisNimMatchedAngle = _rbutilInstance.getAngle(nimMatchedMomentum, thisMatchedMomentum, _rbutilInstance, "no");
-        thisNimMatchedAngles.push_back(thisNimMatchedAngle);
+        thisNimMatchedMcpAngleXZ = _rbutilInstance.getAngle(nimMatchedMomentum, thisMatchedMomentum, _rbutilInstance, "xz");
+        thisNimMatchedMcpAnglesXZ.push_back(thisNimMatchedMcpAngleXZ);
 
-        thisNimMatchedAngleXZ = _rbutilInstance.getAngle(nimMatchedMomentum, thisMatchedMomentum, _rbutilInstance, "xz");
-        thisNimMatchedAnglesXZ.push_back(thisNimMatchedAngleXZ);
-
-        mupMatchedAngleVersusPMom->Fill(thisNimMatchedAngleXZ, thisMcp->P());
+        mupMatchedMcpAnglePMom->Fill(thisNimMatchedMcpAngleXZ, thisMcp->P());
       }
+
 
     }
     it++;
   } // trackHandle
 
+  //------------------------------
+  // Showers
+  //------------------------------
+
   it = 0;
   for (auto const& thisShower : (*showerHandle)){
 
+    // this is to stop LArSoft complaining...
     std::cout << "Found shower with ID " << thisShower.ID() << std::endl; 
     std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromShowers.at(it);
 
@@ -477,6 +518,7 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
       auto thisMcpCleanliness = mcpsFromShowers.data(0).at(0)->cleanliness;
       auto thisMcpCompleteness = mcpsFromShowers.data(0).at(0)->completeness;
 
+      if (isDebug == true){
       std::cout << "MATCH CLEANLINESS: " << thisMcpCleanliness << std::endl;
       std::cout << "MATCH COMPLETENESS: " << thisMcpCompleteness << std::endl;
       std::cout << "---- MCParticle Information ----"
@@ -487,7 +529,7 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
         << "\nMother Pdg : " << thisMcp->Mother()
         << "\nPx, Py, Pz : " << thisMcp->Px() << ", " << thisMcp->Py() << ", " << thisMcp->Pz()
         << std::endl;
-
+      }
 
       if (thisMcp->Process() == "primary" && std::abs(thisMcp->PdgCode()) == 2212)
         showerCleanlinessPrimaryProton->Fill(thisMcpCleanliness);
@@ -512,6 +554,73 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
     it++;
   } // showerHandle
 
+  //---------------------------
+  // Hits
+  //---------------------------
+  
+  for (auto const& thisHit : (*hitHandle)){
+
+    if (trueVertexXZPosition.size() == 0) break;
+
+    // put hit into hitlist
+    std::pair<int, float> hitPair;
+    hitPair.first = (int)thisHit.Channel();
+    hitPair.second = (float)thisHit.PeakTime();
+
+    std::vector<float> hitXZpos = _rbutilInstance.getHitXZPosition(thisHit, _rbutilInstance);
+  
+    bool isHitInRange = _rbutilInstance.isHitNearVertex(trueVertexXZPosition, hitXZpos);
+
+    if (isHitInRange == true)
+      allHitPositions.push_back(hitPair);
+
+  }
+
+  //---------------------------
+  // Clusters
+  //---------------------------
+ 
+  it = 0;
+  for (auto const& thisCluster : (*clusterHandle)){
+    if (trueVertexXZPosition.size() == 0) break;
+
+    std::cout << thisCluster.ID() << std::endl;
+
+    // get associated hits
+    std::vector< art::Ptr< recob::Hit > > hits = hitsFromClusters.at(it);
+
+    for (auto const& thisHit : hits){
+
+      int isMatched = 0;
+      int hitChannel = thisHit->Channel();
+      int hitPeakTime = thisHit->PeakTime();
+
+      std::vector<float> hitXZpos = _rbutilInstance.getHitXZPosition(*thisHit, _rbutilInstance);
+
+      bool isHitInRange = _rbutilInstance.isHitNearVertex(trueVertexXZPosition, hitXZpos);
+
+      if (isHitInRange == false) continue;
+
+      for (size_t i = 0; i < allHitPositions.size(); i++){
+
+        if (hitChannel == allHitPositions.at(i).first && hitPeakTime == allHitPositions.at(i).second){
+
+          isMatched = 1;
+          hitMatchScore->Fill(isMatched);
+        
+        }
+
+      }
+
+
+    }
+
+    hitMatchScore->SetBinContent(0, (int)allHitPositions.size() - hitMatchScore->GetBinContent(1));
+
+    it++;
+  }
+  
+
   recoTree->Fill();
 }
 
@@ -521,65 +630,75 @@ void recohelper::RecoBenchmarker::endJob()
   TFile& file = tfs->file();
   file.cd();
 
+  //--------------------------
+  // Produce eff. plots
+  //--------------------------
+
+  // mu efficiencies
+  muMomentumEfficiency =
+    (TH1D*)muMatchedMcpMomentum->Clone("muMomentumEfficiency");
+  muMomentumEfficiency->Divide(muMcpMomentum);
+
   // mupangleMomentumEfficiencies
   mupAngleMomentumEfficiency = 
-    (TH2D*)mupMatchedAngleVersusPMom->Clone("mupAngleMomentumEfficiency");
-  mupAngleMomentumEfficiency->Divide(mupMcpAngleVersusPMom);
+    (TH2D*)mupMatchedMcpAnglePMom->Clone("mupAngleMomentumEfficiency");
+  mupAngleMomentumEfficiency->Divide(mupMcpAnglePMom);
 
   // pMomentumEfficiencies
-  TH2D* h = (TH2D*)mupMatchedAngleVersusPMom->Clone("h");
-  pMatchedProjectedMomentum = (TH1D*)h->ProjectionY("pMatchedProjectedMomentum");
+  mupAngleMomentumEfficiency 
+    =(TH2D*)mupMatchedMcpAnglePMom->Clone("mupAngleMomentumEfficiency");
+  mupAngleMomentumEfficiency->Divide(mupMcpAnglePMom);
 
-  TH2D* h2 = (TH2D*)mupMcpAngleVersusPMom->Clone("h2");
-  pMcpProjectedMomentum = (TH1D*)h2->ProjectionY("pMcpProjectedMomentum");
+  pMatchedMcpProjectedAngle = (TH1D*)mupMatchedMcpAnglePMom->ProjectionY();
+  pMcpProjectedAngle = (TH1D*)mupMcpAnglePMom->ProjectionY();
 
-  pMomentumEfficiency = ((TH1D*)pMatchedProjectedMomentum->Clone("pMomentumEfficiency"));
-  pMomentumEfficiency->Divide(pMcpProjectedMomentum);
+  pProjectedAngleEfficiency =
+    (TH1D*)pMatchedMcpProjectedAngle->Clone("pProjectedAngleEfficiency");
+  pProjectedAngleEfficiency->Divide(pMcpProjectedAngle);
 
-  // pAngleEfficiencies
-  pMatchedProjectedAngle = (TH1D*)h->ProjectionX("pMatchedProjectedAngle");
-  pMcpProjectedAngle = (TH1D*)h2->ProjectionX("pMcpProjectedAngle");
+  pMatchedMcpProjectedMomentum = (TH1D*)mupMatchedMcpAnglePMom->ProjectionX();
+  pMcpProjectedMomentum = (TH1D*)mupMcpAnglePMom->ProjectionX();
 
-  pAngleEfficiency = 
-    ((TH1D*)pMatchedProjectedAngle->Clone("pAngleEfficiency"));
-  pAngleEfficiency->Divide(pMcpProjectedAngle);
-
-  h->Delete();
-  h2->Delete();
+  pProjectedMomentumEfficiency =
+    (TH1D*)pMatchedMcpProjectedMomentum->Clone("pProjectedMomentumEfficiency");
+  pProjectedMomentumEfficiency->Divide(pMcpProjectedMomentum);
 
   //trackAngleLengthEfficiencies
-  lengthVersusAngleEfficiency 
-    = (TH2D*)matchedLengthVersusAngle->Clone("lengthVersusAngleEfficiency");
-  lengthVersusAngleEfficiency->Divide(mcpLengthVersusAngle);
+  allLengthAngleEfficiency 
+    = (TH2D*)allMatchedMcpLengthAngle->Clone("allLengthAngleEfficiency");
+  allLengthAngleEfficiency->Divide(allMcpLengthAngleYZ);
 
-  matchedProjectedLength = (TH1D*)matchedLengthVersusAngle->ProjectionY();
-  mcpProjectedLength = (TH1D*)mcpLengthVersusAngle->ProjectionY();
+  allMatchedMcpProjectedLength = (TH1D*)allMatchedMcpLengthAngle->ProjectionY();
+  allMcpProjectedLength = (TH1D*)allMcpLengthAngleYZ->ProjectionY();
 
-  trackLengthEfficiency = 
-    (TH1D*)matchedProjectedLength->Clone("trackLengthEfficiency");
-  trackLengthEfficiency->Divide(mcpProjectedLength);
+  allProjectedLengthEfficiency = 
+    (TH1D*)allMatchedMcpProjectedLength->Clone("allProjectedLengthEfficiency");
+  allProjectedLengthEfficiency->Divide(allMcpProjectedLength);
 
-  matchedProjectedAngle = (TH1D*)matchedLengthVersusAngle->ProjectionX();
-  mcpProjectedAngle = (TH1D*)mcpLengthVersusAngle->ProjectionX();
+  allMatchedMcpProjectedAngle = (TH1D*)allMatchedMcpLengthAngle->ProjectionX();
+  allMcpProjectedAngle = (TH1D*)allMcpLengthAngleYZ->ProjectionX();
 
-  trackAngleEfficiency =
-    (TH1D*)matchedProjectedAngle->Clone("trackAngleEfficiency");
-  trackAngleEfficiency->Divide(mcpProjectedAngle);
+  allProjectedAngleEfficiency =
+    (TH1D*)allMatchedMcpProjectedAngle->Clone("allProjectedAngleEfficiency");
+  allProjectedAngleEfficiency->Divide(allMcpProjectedAngle);
 
+  // aaaaand write...
+  muMomentumEfficiency->Write();
   mupAngleMomentumEfficiency->Write();
-  pMatchedProjectedMomentum->Write();
+  pMatchedMcpProjectedMomentum->Write();
   pMcpProjectedMomentum->Write();
-  pMomentumEfficiency->Write();
-  pMatchedProjectedAngle->Write();
+  pProjectedMomentumEfficiency->Write();
+  pMatchedMcpProjectedAngle->Write();
   pMcpProjectedAngle->Write();
-  pAngleEfficiency->Write();
-  lengthVersusAngleEfficiency->Write();
-  matchedProjectedLength->Write();
-  mcpProjectedLength->Write();
-  trackLengthEfficiency->Write();
-  matchedProjectedAngle->Write();
-  mcpProjectedAngle->Write();
-  trackAngleEfficiency->Write();
+  pProjectedAngleEfficiency->Write();
+  allLengthAngleEfficiency->Write();
+  allMatchedMcpProjectedLength->Write();
+  allMcpProjectedLength->Write();
+  allProjectedLengthEfficiency->Write();
+  allMatchedMcpProjectedAngle->Write();
+  allMcpProjectedAngle->Write();
+  allProjectedAngleEfficiency->Write();
+
 }
 
 DEFINE_ART_MODULE(recohelper::RecoBenchmarker)

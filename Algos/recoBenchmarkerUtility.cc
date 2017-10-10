@@ -2,6 +2,22 @@
 
 namespace rbutil{
 
+  bool recoBenchmarkerUtility::isInTPC(const art::Ptr< simb::MCParticle >& a){
+    
+    float sx = a->Vx();
+    float sy = a->Vy();
+    float sz = a->Vz();
+    //float ex = a->EndX();
+    //float ey = a->EndY();
+    //float ez = a->EndZ();
+
+    if ( (sx > 0 && sx < 256 && sy > -111.5 && sy < 111.5 && sz > 0 && sz < 1036) 
+        /*|| (ex > 0 && ex < 256 && ey > -111.5 && ey < 111.5 && ez > 0 && ez < 1036)*/)
+        return true;
+    else return false;
+
+  }
+
   std::vector<double> recoBenchmarkerUtility::getMomentumVector(const art::Ptr< simb::MCParticle >& a){
 
     std::vector<double> aMom;
@@ -113,6 +129,62 @@ namespace rbutil{
 
     return dotProduct;
 
+  }
+ 
+  std::vector<float> recoBenchmarkerUtility::getHitXZPosition(const recob::Hit& thisHit, recoBenchmarkerUtility rbutil){
+
+    float hitChannel = (float)thisHit.Channel();
+    float hitX = rbutil.convertTicksToX(thisHit);
+    float hitZ = (hitChannel-4800)*0.3;
+      
+    std::vector<float> hitPosition = {hitX, hitZ};
+
+    return hitPosition;
+
+  }
+
+  float recoBenchmarkerUtility::convertTicksToX(const recob::Hit& thisHit){
+
+    double tick = thisHit.PeakTime();
+
+    const detinfo::DetectorProperties* detProp = lar::providerFrom<detinfo::DetectorPropertiesService>();
+    //geo::GeometryCore const* geom = lar::providerFrom<geo::Geometry>();
+   
+
+    geo::PlaneID planeID;
+
+    if (thisHit.Channel() < 2400)
+      planeID = geo::PlaneID(0,0,0);
+    else if (thisHit.Channel() >= 4800)
+      planeID = geo::PlaneID(0,0,2);
+    else
+      planeID = geo::PlaneID(0,0,1);
+
+    float xPos = detProp->ConvertTicksToX(tick, planeID);
+
+
+    return xPos;
+
+  }
+
+  bool recoBenchmarkerUtility::isHitNearVertex(std::vector<float> v, std::vector<float> h){
+
+    float maxDistanceFromVertex = 5.0;
+
+    float vx = v.at(0);
+    float vz = v.at(1);
+    float hx = h.at(0);
+    float hz = h.at(1);
+
+    //std::cout << "v: " << vx << "," << vz << "    h: " << hx << "," << hz << std::endl;
+
+    float hvLength = sqrt(std::pow(vx-hx,2) + std::pow(vz-hz,2));
+
+    if (std::abs(hvLength) <  maxDistanceFromVertex)
+      return true;
+    else 
+      return false;
+      
   }
 
 }

@@ -4,7 +4,14 @@
 // larsoft includes
 #include "nusimdata/SimulationBase/MCParticle.h"
 #include "lardataobj/RecoBase/Track.h"
+#include "lardataobj/RecoBase/Hit.h"
 #include "canvas/Persistency/Common/Ptr.h"
+#include "larcore/Geometry/Geometry.h"
+#include "larcore/Geometry/GeometryCore.h"
+#include "lardata/Utilities/LArFFT.h"
+#include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
+#include "art/Framework/Services/Registry/ServiceHandle.h"
+#include "larcoreobj/SimpleTypesAndConstants/geo_types.h"
 
 // ROOT includes
 #include "TLorentzVector.h"
@@ -22,6 +29,8 @@ namespace rbutil{
 
     public:
 
+      bool isInTPC(const art::Ptr< simb::MCParticle >& a);
+
       std::vector<double> getMomentumVector(const art::Ptr< simb::MCParticle >& a);
 
       std::vector<double> getMomentumVector(const recob::Track& a);
@@ -32,6 +41,11 @@ namespace rbutil{
 
       float getDotProduct(std::vector<float> a, std::vector<float> b);
 
+      std::vector<float> getHitXZPosition(const recob::Hit& thisHit, recoBenchmarkerUtility rbutil);
+
+      float convertTicksToX(const recob::Hit& thisHit);
+
+      bool isHitNearVertex(std::vector<float> v, std::vector<float> h);
   };
 
 }
