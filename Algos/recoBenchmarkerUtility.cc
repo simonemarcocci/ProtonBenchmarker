@@ -17,6 +17,23 @@ namespace rbutil{
     else return false;
 
   }
+  
+  bool recoBenchmarkerUtility::isInTPC(const simb::MCParticle & a){
+    
+    float sx = a.Vx();
+    float sy = a.Vy();
+    float sz = a.Vz();
+    //float ex = a->EndX();
+    //float ey = a->EndY();
+    //float ez = a->EndZ();
+
+    if ( (sx > 0 && sx < 256 && sy > -111.5 && sy < 111.5 && sz > 0 && sz < 1036) 
+        /*|| (ex > 0 && ex < 256 && ey > -111.5 && ey < 111.5 && ez > 0 && ez < 1036)*/)
+        return true;
+    else return false;
+
+  }
+  
 
   std::vector<double> recoBenchmarkerUtility::getMomentumVector(const art::Ptr< simb::MCParticle >& a){
 

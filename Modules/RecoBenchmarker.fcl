@@ -1,0 +1,16 @@
+BEGIN_PROLOG
+
+RecoBenchmarker: {
+      module_type:  "RecoBenchmarker"
+      TrackLabel:   "pandoraNu"
+      TrackTruthLabel: "pandoraNuTruthMatch"
+      MCTruthLabel: "generator"
+      G4TruthLabel: "largeant"
+      ShowerLabel:  "showerrecopandora"
+      CalorimetryLabel:  "pandoraNucalo"
+      ShowerTruthLabel: "showerrecopandoraTruthMatch"
+      ClusterLabel: "pandoraNu"
+      HitLabel: "gaushit"
+}
+
+END_PROLOG

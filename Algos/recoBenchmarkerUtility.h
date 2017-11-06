@@ -29,8 +29,10 @@ namespace rbutil{
 
     public:
 
-      bool isInTPC(const art::Ptr< simb::MCParticle >& a);
-
+      bool isInTPC(const art::Ptr< simb::MCParticle >& );
+      
+      bool isInTPC(const simb::MCParticle & );
+            
       std::vector<double> getMomentumVector(const art::Ptr< simb::MCParticle >& a);
 
       std::vector<double> getMomentumVector(const recob::Track& a);

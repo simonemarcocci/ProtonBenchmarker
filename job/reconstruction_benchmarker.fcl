@@ -1,6 +1,7 @@
 #include "services_microboone.fcl"
 #include "messageservice.fcl"
 #include "time_memory_tracker_microboone.fcl"
+#include "RecoBenchmarker.fcl"
 
 process_name: recobenchmarker
 
@@ -20,18 +21,7 @@ physics:
   analyzers:
   {
 
-    recobenchmarker:
-    {
-
-      module_type:  "RecoBenchmarker"
-      TrackLabel:   "pandoraNu"
-      TrackTruthLabel: "pandoraNuTruthMatch"
-      ShowerLabel:  "showerrecopandora"
-      ShowerTruthLabel: "showerrecopandoraTruthMatch"
-      ClusterLabel: "pandoraNu"
-      HitLabel: "gaushit"
-
-    }
+    recobenchmarker: @local::RecoBenchmarker
 
   }
 
@@ -41,3 +31,6 @@ physics:
 } # physics
 
 services.DetectorClocksService.InheritClockConfig: false
+services.SpaceCharge.EnableCorrSCE: true
+services.SpaceCharge.EnableSimEfieldSCE: true
+services.SpaceCharge.EnableSimSpatialSCE: true
