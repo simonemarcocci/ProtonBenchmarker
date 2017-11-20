@@ -670,7 +670,7 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
     std::vector< art::Ptr<anab::Calorimetry> > calos = caloFromTracks.at(thisTrack->ID());
 
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same track!" << std::endl;
-    if (calos.size() != 3 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 Calorimetry info associated to the same track!" << std::endl;
+    if (calos.size() != 3 ) mf::LogWarning(__FUNCTION__) << "Warning !!! Calorimetry info size " << calos.size() << " != 3 associated to tracks!" << std::endl;
 
     for (auto const& thisMcp : mcps){
     
@@ -720,12 +720,12 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
  	
 	if (thisMcp->PdgCode() == 13 ) { //for the muon, only when there is the info
 		if (fmuon_dqdx.size()!=0) mf::LogError(__FUNCTION__) << "Calorimetry should be filled only once!!!!" << std::endl;
-		for (size_t position=0; position<calos.at(2)->dQdx().size(); position++) {
-		fmuon_dqdx.push_back(calos.at(2)->dQdx()[position]); //look only at collection
-		fmuon_dedx.push_back(calos.at(2)->dEdx()[position]); //look only at collection
-		fmuon_residual.push_back(calos.at(2)->ResidualRange()[position]); //look only at collection
+		for (size_t position=0; position<calos.at( geo::kCollection )->dQdx().size(); position++) {
+		fmuon_dqdx.push_back(calos.at( geo::kCollection )->dQdx()[position]); //look only at collection
+		fmuon_dedx.push_back(calos.at( geo::kCollection )->dEdx()[position]); //look only at collection
+		fmuon_residual.push_back(calos.at( geo::kCollection )->ResidualRange()[position]); //look only at collection
 		}
-	fmuon_range = calos.at(2)->Range();
+	fmuon_range = calos.at( geo::kCollection )->Range();
 	}
 
 	auto thisMcpCleanliness = mcpsFromTracks.data(thisTrack->ID()).at(0)->cleanliness;
