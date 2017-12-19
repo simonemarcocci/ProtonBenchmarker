@@ -9,8 +9,12 @@ art_make( BASENAME_ONLY
           LIBRARY_NAME uboonecode_uboone_RecoBenchmarker
           LIB_LIBRARIES
             uboonecode_uboone_RecoBenchmarker_Algos
+	    ${PANDORASDK}
+	    ${PANDORAMONITORING}
   
           MODULE_LIBRARIES 
+	    larpandora_LArPandoraInterface
+	    LArPandoraContent
             uboonecode_uboone_RecoBenchmarker_Algos
             larcore_Geometry
             larcore_Geometry_Geometry_service

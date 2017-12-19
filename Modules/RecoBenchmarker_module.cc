@@ -15,6 +15,7 @@
 #include "art/Framework/Principal/Run.h"
 #include "art/Framework/Principal/SubRun.h"
 #include "art/Framework/Services/Optional/TFileService.h"
+//#include "art/Framework/IO/Root/RootInputFile.h"
 #include "canvas/Utilities/InputTag.h"
 #include "fhiclcpp/ParameterSet.h"
 #include "messagefacility/MessageLogger/MessageLogger.h"
@@ -25,14 +26,21 @@
 #include "lardataobj/RecoBase/Shower.h"
 #include "lardataobj/RecoBase/Cluster.h"
 #include "lardataobj/RecoBase/Hit.h"
+#include "lardataobj/RecoBase/SpacePoint.h"
+#include "lardataobj/RecoBase/PFParticle.h"
+#include "lardataobj/RecoBase/Vertex.h"
 #include "larreco/RecoAlg/TrackMomentumCalculator.h"
 #include "nusimdata/SimulationBase/MCParticle.h"
 #include "nusimdata/SimulationBase/MCTruth.h"
 #include "lardataobj/AnalysisBase/BackTrackerMatchingData.h"
 #include "lardataobj/AnalysisBase/Calorimetry.h"
+#include "lardataobj/Simulation/SimChannel.h"
 #include "larevt/SpaceChargeServices/SpaceChargeService.h"
 #include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
 #include "larcoreobj/SimpleTypesAndConstants/geo_types.h"
+#include "larcore/Geometry/WireGeo.h"
+#include "lardataobj/MCBase/MCHitCollection.h"
+#include "larpandora/LArPandoraInterface/LArPandora.h"
 
 // ROOT includes
 #include "TFile.h"
@@ -74,14 +82,17 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
   private:
     // fcl input parameters
     std::string fTrackLabel;
+    std::string fPfpLabel;
     std::string fCalorimetryLabel;
     std::string fTrackTruthLabel;
+    std::string fHitAssnTruthLabel;
     std::string fShowerLabel;
     std::string fShowerTruthLabel;
     std::string fClusterLabel;
     std::string fHitLabel;
     std::string fMCTruthLabel;
     std::string fG4TruthLabel;
+    std::string fMCHitLabel;
 
 
     rbutil::recoBenchmarkerUtility _rbutilInstance;
@@ -104,6 +115,9 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
 
     int nimID;
     int recoNimID;
+    float fneutrino_x;
+    float fneutrino_y;
+    float fneutrino_z;
 
     //info on the MC particle
     std::map<Int_t,Int_t> fparticle_count;
@@ -133,6 +147,10 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
    double fmuon_range;
 
    //info coming from the tracking algorithm - when there is mc truth
+   float fnu_reco_x;
+   float fnu_reco_y;
+   float fnu_reco_z;
+   float fnu_reco_chi2ndf;
    std::vector<bool> fis_tracked;
    std::vector<bool> fmatch_multiplicity;
    //std::vector<bool> fis_mismatched; //it says if the MC truth assignment in different planes is different (possible hint for wrong or problematic backtracking)
@@ -152,6 +170,11 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
    std::vector<float> freco_endx;
    std::vector<float> freco_endy;
    std::vector<float> freco_endz;
+   std::vector<int> freco_trackid;
+   std::vector<float> freco_vertex_x;
+   std::vector<float> freco_vertex_y;
+   std::vector<float> freco_vertex_z;
+   std::vector<float> freco_vertex_chi2ndf;
    
    //info coming from the tracking algorithm - when there is NO mc truth
    std::vector<bool> ffake_is_tracked;
@@ -167,9 +190,31 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
    std::vector<double> ffake_nhits;
    std::vector<float> ffake_kinE;
 
+   //hit analysis
+   std::vector<int> freco_track_hits;
+   std::vector<float> freco_track_collection_hits;
+   std::vector<float> freco_track_collection_charge;
+   std::vector<int> freco_mcp_hits;
+   std::vector<float> freco_mcp_collection_hits;
+   std::vector<float> freco_mcp_collection_charge;
+   std::vector<float> fnot_clustered;
+   std::vector< std::vector<float>> fnot_clustered_charge;
+   std::vector<float> fclustered;
+   std::vector< std::vector<float>> fclustered_charge;
+   std::vector<float> fclustered_matched;
+   std::vector< std::vector<float>> fclustered_matched_charge;
+   std::vector<float> fclustered_mismatched;
+   std::vector< std::vector<float>> fclustered_mismatched_charge;
+   std::vector< std::vector<int>> fhit_mismatch_pdg;
+
+   //service variables
+   long tot_n_protons; //protons > 20MeV
+   long n_all_protons; //all protons
+   long low_protons; // protons <20MeV
+   long n_muons; // total reco muons
 
    void AllocateAnalysisHistograms();
-   void FillAnalysisHistograms();
+   int FillAnalysisHistograms(int&, int&, bool&);
    void FillCumulativeHistograms();
 
     // hit list stuff
@@ -258,6 +303,12 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
     TH1D* trackCleanlinessOther;
 
     // Simone's plots
+    TH1D* hproton_multi_all;
+    TH1D* hproton_leading_kinE;
+    TH1D* hproton_multi_above20MeV;
+    TH1D* hproton_multi_below20MeV;
+    TH1D* hproton_merged_not_merged;
+   
    TH1D* hmuon_pos_res;
    TH1D* hmuon_pos_res_goodprotons;
    TH1D* hmuon_pos_res_badprotons;
@@ -269,19 +320,26 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
    TH1D* hmuon_proton_tracked;
    TH1D* hmuon_spectrum;
    TH1D* hmuon_spectrum_all;
+   TH1D* hmuon_spectrum_eff;
    TH1D* hmuon_length;
    TH1D* hmuon_length_all;
+   TH1D* hmuon_length_eff;
    TH1D* hproton_kinE;
    TH1D* hproton_kinE_all;
+   TH1D* hproton_kinE_eff;
    TH1D* hproton_p;
    TH1D* hproton_p_all;
+   TH1D* hproton_p_eff;
    TH1D* hproton_l;
    TH1D* hproton_l_all;
+   TH1D* hproton_l_eff;
    TH1D* h_pmu_end_not_tracked;
    TH1D* h_pmu_end_tracked;
    TH1D* h_theta_mu_tracked;
    TH1D* h_theta_mu_not_tracked;
    TH1D* h_theta_mu;
+   TH1D* hproton_theta_mu;
+   TH1D* hproton_theta_mu_eff;
    TH2D* h_theta_mu_length;
    TH2D* h_theta_mu_length_all;
    TH2D* h_dqdx_merged;
@@ -297,7 +355,167 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
    TH2D* h_dqdx_merged_service;
    TH2D* h_dqdx_not_merged_service;
    TH2D* h_dqdx_low_protons_service;
-    
+   TH1D* h_vertex_resolution_neutrino;
+   TH1D* h_vertex_resolution_proton;
+   TH1D* h_vertex_resolution_muon;
+   TH1D* h_vertex_resolution_neutrino_not_merged;
+   TH1D* h_vertex_resolution_proton_not_merged;
+   TH1D* h_vertex_resolution_muon_not_merged;
+   TH1D* h_vertex_resolution_neutrino_merged;
+   TH1D* h_vertex_resolution_proton_merged;
+   TH1D* h_vertex_resolution_muon_merged;
+   TH2D* h_vertex_resolution_vs_not_tracked_above20MeV;
+   TH2D* h_vertex_resolution_vs_not_tracked_below20MeV;
+   TH2D* h_vertex_resolution_vs_not_tracked;
+   
+   //hits analysis
+  
+   //hits studies
+   TH1D* h_tracked_not_clustered_distance_nuvtx;
+   TH1D* h_tracked_not_clustered_muon_start;
+   TH1D* h_tracked_not_clustered_muon_end;
+   TH2D* h_tracked_not_clustered_proton_start;
+   TH2D* h_tracked_not_clustered_proton_end;
+   TH1D* h_hits_not_clustered_tracked_charge;
+   TH1D* h_hits_not_clustered_tracked_charge_proton;
+   TH1D* h_hits_not_clustered_tracked_charge_muon;
+   TH1D* h_fraction_pdgs_not_tracked_not_clustered;
+   TH1D* h_not_tracked_not_clustered_muon_start;
+   TH1D* h_not_tracked_not_clustered_muon_end;
+   TH2D* h_not_tracked_not_clustered_proton_start;
+   TH2D* h_not_tracked_not_clustered_proton_end;
+   TH1D* h_hits_not_clustered_not_tracked_charge_muon;
+   TH1D* h_hits_not_clustered_not_tracked_charge_proton;
+   
+   TH1D* h_muon_clustering_prob_good_protons;
+   TH1D* h_muon_clustering_mismatch_pdg_good_protons;
+   TH2D* h_muon_not_clustered_reco_hits_good_protons;
+   TH2D* h_muon_NC_lateral_hits_good_protons;
+   TH2D* h_muon_NC_costheta_hits_good_protons;
+   TH2D* h_muon_clustered_matched_reco_hits_good_protons;
+   TH2D* h_muon_CMA_lateral_hits_good_protons;
+   TH2D* h_muon_CMA_costheta_hits_good_protons;
+   TH2D* h_muon_clustered_mismatched_reco_hits_good_protons;
+   TH2D* h_muon_CMI_lateral_hits_good_protons;
+   TH2D* h_muon_CMI_costheta_hits_good_protons;
+   TH2D* h_muon_not_clustered_reco_charge_good_protons;
+   TH2D* h_muon_NC_lateral_charge_good_protons;
+   TH2D* h_muon_NC_costheta_charge_good_protons;
+   TH2D* h_muon_clustered_matched_reco_charge_good_protons;
+   TH2D* h_muon_CMA_lateral_charge_good_protons;
+   TH2D* h_muon_CMA_costheta_charge_good_protons;
+   TH2D* h_muon_clustered_mismatched_reco_charge_good_protons;
+   TH2D* h_muon_CMI_lateral_charge_good_protons;
+   TH2D* h_muon_CMI_costheta_charge_good_protons;
+
+   TH1D* h_proton_clustering_prob_good_protons;
+   TH1D* h_proton_clustering_mismatch_pdg_good_protons;
+   TH2D* h_proton_not_clustered_reco_hits_good_protons;
+   TH2D* h_proton_NC_lateral_hits_good_protons;
+   TH2D* h_proton_NC_costheta_hits_good_protons;
+   TH2D* h_proton_clustered_matched_reco_hits_good_protons;
+   TH2D* h_proton_CMA_lateral_hits_good_protons;
+   TH2D* h_proton_CMA_costheta_hits_good_protons;
+   TH2D* h_proton_clustered_mismatched_reco_hits_good_protons;
+   TH2D* h_proton_CMI_lateral_hits_good_protons;
+   TH2D* h_proton_CMI_costheta_hits_good_protons;
+   TH2D* h_proton_not_clustered_reco_charge_good_protons;
+   TH2D* h_proton_NC_lateral_charge_good_protons;
+   TH2D* h_proton_NC_costheta_charge_good_protons;
+   TH2D* h_proton_clustered_matched_reco_charge_good_protons;
+   TH2D* h_proton_CMA_lateral_charge_good_protons;
+   TH2D* h_proton_CMA_costheta_charge_good_protons;
+   TH2D* h_proton_clustered_mismatched_reco_charge_good_protons;
+   TH2D* h_proton_CMI_lateral_charge_good_protons;
+   TH2D* h_proton_CMI_costheta_charge_good_protons;
+
+   TH1D* h_muon_clustering_prob_bad_protons;
+   TH1D* h_muon_clustering_mismatch_pdg_bad_protons;
+   TH2D* h_muon_not_clustered_reco_hits_bad_protons;
+   TH2D* h_muon_NC_lateral_hits_bad_protons;
+   TH2D* h_muon_NC_costheta_hits_bad_protons;
+   TH2D* h_muon_clustered_matched_reco_hits_bad_protons;
+   TH2D* h_muon_CMA_lateral_hits_bad_protons;
+   TH2D* h_muon_CMA_costheta_hits_bad_protons;
+   TH2D* h_muon_clustered_mismatched_reco_hits_bad_protons;
+   TH2D* h_muon_CMI_lateral_hits_bad_protons;
+   TH2D* h_muon_CMI_costheta_hits_bad_protons;
+   TH2D* h_muon_not_clustered_reco_charge_bad_protons;
+   TH2D* h_muon_NC_lateral_charge_bad_protons;
+   TH2D* h_muon_NC_costheta_charge_bad_protons;
+   TH2D* h_muon_clustered_matched_reco_charge_bad_protons;
+   TH2D* h_muon_CMA_lateral_charge_bad_protons;
+   TH2D* h_muon_CMA_costheta_charge_bad_protons;
+   TH2D* h_muon_clustered_mismatched_reco_charge_bad_protons;
+   TH2D* h_muon_CMI_lateral_charge_bad_protons;
+   TH2D* h_muon_CMI_costheta_charge_bad_protons;
+
+   TH1D* h_proton_clustering_prob_bad_protons;
+   TH1D* h_proton_clustering_mismatch_pdg_bad_protons;
+   TH2D* h_proton_not_clustered_reco_hits_bad_protons;
+   TH2D* h_proton_NC_lateral_hits_bad_protons;
+   TH2D* h_proton_NC_costheta_hits_bad_protons;
+   TH2D* h_proton_clustered_matched_reco_hits_bad_protons;
+   TH2D* h_proton_CMA_lateral_hits_bad_protons;
+   TH2D* h_proton_CMA_costheta_hits_bad_protons;
+   TH2D* h_proton_clustered_mismatched_reco_hits_bad_protons;
+   TH2D* h_proton_CMI_lateral_hits_bad_protons;
+   TH2D* h_proton_CMI_costheta_hits_bad_protons;
+   TH2D* h_proton_not_clustered_reco_charge_bad_protons;
+   TH2D* h_proton_NC_lateral_charge_bad_protons;
+   TH2D* h_proton_NC_costheta_charge_bad_protons;
+   TH2D* h_proton_clustered_matched_reco_charge_bad_protons;
+   TH2D* h_proton_CMA_lateral_charge_bad_protons;
+   TH2D* h_proton_CMA_costheta_charge_bad_protons;
+   TH2D* h_proton_clustered_mismatched_reco_charge_bad_protons;
+   TH2D* h_proton_CMI_lateral_charge_bad_protons;
+   TH2D* h_proton_CMI_costheta_charge_bad_protons;
+
+   TH1D* h_proton_clustering_prob_bad_protons_not_tracked;
+   TH1D* h_proton_clustering_mismatch_pdg_bad_protons_not_tracked;
+   TH2D* h_proton_not_clustered_reco_hits_bad_protons_not_tracked;
+   TH2D* h_proton_NC_lateral_hits_bad_protons_not_tracked;
+   TH2D* h_proton_NC_costheta_hits_bad_protons_not_tracked;
+   TH2D* h_proton_clustered_matched_reco_hits_bad_protons_not_tracked;
+   TH2D* h_proton_CMA_lateral_hits_bad_protons_not_tracked;
+   TH2D* h_proton_CMA_costheta_hits_bad_protons_not_tracked;
+   TH2D* h_proton_clustered_mismatched_reco_hits_bad_protons_not_tracked;
+   TH2D* h_proton_CMI_lateral_hits_bad_protons_not_tracked;
+   TH2D* h_proton_CMI_costheta_hits_bad_protons_not_tracked;
+   TH2D* h_proton_not_clustered_reco_charge_bad_protons_not_tracked;
+   TH2D* h_proton_NC_lateral_charge_bad_protons_not_tracked;
+   TH2D* h_proton_NC_costheta_charge_bad_protons_not_tracked;
+   TH2D* h_proton_clustered_matched_reco_charge_bad_protons_not_tracked;
+   TH2D* h_proton_CMA_lateral_charge_bad_protons_not_tracked;
+   TH2D* h_proton_CMA_costheta_charge_bad_protons_not_tracked;
+   TH2D* h_proton_clustered_mismatched_reco_charge_bad_protons_not_tracked;
+   TH2D* h_proton_CMI_lateral_charge_bad_protons_not_tracked;
+   TH2D* h_proton_CMI_costheta_charge_bad_protons_not_tracked;
+
+
+   TH1D* h_muon_clustering_prob_low_protons;
+   TH1D* h_muon_clustering_mismatch_pdg_low_protons;
+   TH2D* h_muon_not_clustered_reco_hits_low_protons;
+   TH2D* h_muon_NC_lateral_hits_low_protons;
+   TH2D* h_muon_NC_costheta_hits_low_protons;
+   TH2D* h_muon_clustered_matched_reco_hits_low_protons;
+   TH2D* h_muon_CMA_lateral_hits_low_protons;
+   TH2D* h_muon_CMA_costheta_hits_low_protons;
+   TH2D* h_muon_clustered_mismatched_reco_hits_low_protons;
+   TH2D* h_muon_CMI_lateral_hits_low_protons;
+   TH2D* h_muon_CMI_costheta_hits_low_protons;
+   TH2D* h_muon_not_clustered_reco_charge_low_protons;
+   TH2D* h_muon_NC_lateral_charge_low_protons;
+   TH2D* h_muon_NC_costheta_charge_low_protons;
+   TH2D* h_muon_clustered_matched_reco_charge_low_protons;
+   TH2D* h_muon_CMA_lateral_charge_low_protons;
+   TH2D* h_muon_CMA_costheta_charge_low_protons;
+   TH2D* h_muon_clustered_mismatched_reco_charge_low_protons;
+   TH2D* h_muon_CMI_lateral_charge_low_protons;
+   TH2D* h_muon_CMI_costheta_charge_low_protons;
+
+
+   int n_events;
 
     void AllocateRecoVectors();
     void clear_vectors();
@@ -311,20 +529,25 @@ recohelper::RecoBenchmarker::RecoBenchmarker(fhicl::ParameterSet const & p)
 {
 
   fTrackLabel = p.get<std::string> ("TrackLabel");
+  fPfpLabel = p.get<std::string> ("PfpLabel");
   fCalorimetryLabel = p.get<std::string> ("CalorimetryLabel");
   fTrackTruthLabel = p.get<std::string> ("TrackTruthLabel");
+  fHitAssnTruthLabel = p.get<std::string> ("HitAssnTruthLabel");
   fShowerLabel = p.get<std::string> ("ShowerLabel");
   fMCTruthLabel = p.get<std::string> ("MCTruthLabel");
   fG4TruthLabel = p.get<std::string> ("G4TruthLabel");
   fShowerTruthLabel = p.get<std::string> ("ShowerTruthLabel");
   fClusterLabel = p.get<std::string> ("ClusterLabel");
   fHitLabel = p.get<std::string> ("HitLabel");
+  fMCHitLabel = p.get<std::string> ("MCHitLabel");
 
 }
 
 void recohelper::RecoBenchmarker::beginJob()
 {
 
+
+	//std::cout << ">>>>>>>" << art::RootInputFile::fileName() << std::endl;
   recoTree = tfs->make<TTree>("recotree", "recotree");
 
   // define branches
@@ -335,6 +558,9 @@ void recohelper::RecoBenchmarker::beginJob()
   //mctruth info
   recoTree->Branch("ccnc", &fccnc);
   recoTree->Branch("interaction", &finteraction);
+  recoTree->Branch("neutrino_x", &fneutrino_x);
+  recoTree->Branch("neutrino_y", &fneutrino_y);
+  recoTree->Branch("neutrino_z", &fneutrino_z);
 
     //info on the MC particle
     recoTree->Branch("length",&flength);
@@ -376,6 +602,10 @@ void recohelper::RecoBenchmarker::beginJob()
   recoTree->Branch("thisNimMatchedMcpAnglesXZ", &thisNimMatchedMcpAnglesXZ);
    
   //info coming from the tracking algorithm - when there is mc truth
+  recoTree->Branch("nu_reco_x",&fnu_reco_x);
+  recoTree->Branch("nu_reco_y",&fnu_reco_y);
+  recoTree->Branch("nu_reco_z",&fnu_reco_z);
+  recoTree->Branch("nu_reco_chi2ndf",&fnu_reco_chi2ndf);
   recoTree->Branch("is_tracked",&fis_tracked);
   recoTree->Branch("match_multiplicity",&fmatch_multiplicity);
   recoTree->Branch("length_reco",&flength_reco);
@@ -392,8 +622,37 @@ void recohelper::RecoBenchmarker::beginJob()
   recoTree->Branch("reco_endx",&freco_endx);
   recoTree->Branch("reco_endy",&freco_endy);
   recoTree->Branch("reco_endz",&freco_endz);
+  recoTree->Branch("reco_trackid",&freco_trackid);
+  recoTree->Branch("reco_vertex_x",&freco_vertex_x);
+  recoTree->Branch("reco_vertex_y",&freco_vertex_y);
+  recoTree->Branch("reco_vertex_z",&freco_vertex_z);
+  recoTree->Branch("reco_vertex_chi2ndf",&freco_vertex_chi2ndf);
+
+  //hits analysis
+  recoTree->Branch("reco_track_hits",&freco_track_hits);
+  recoTree->Branch("reco_track_collection_hits",&freco_track_collection_hits);
+  recoTree->Branch("reco_track_collection_charge",&freco_track_collection_charge);
+  recoTree->Branch("reco_mcp_hits",&freco_mcp_hits);
+  recoTree->Branch("reco_mcp_collection_hits",&freco_mcp_collection_hits);
+  recoTree->Branch("reco_mcp_collection_charge",&freco_mcp_collection_charge);
+  recoTree->Branch("not_clustered",&fnot_clustered);
+  recoTree->Branch("not_clustered_charge",&fnot_clustered_charge);
+  recoTree->Branch("clustered",&fclustered);
+  recoTree->Branch("clustered_charge",&fclustered_charge);
+  recoTree->Branch("clustered_matched",&fclustered_matched);
+  recoTree->Branch("clustered_matched_charge",&fclustered_matched_charge);
+  recoTree->Branch("clustered_mismatched",&fclustered_mismatched);
+  recoTree->Branch("clustered_mismatched_charge",&fclustered_mismatched_charge);
+  recoTree->Branch("hit_mismatch_pdg",&fhit_mismatch_pdg);
+
 
   AllocateAnalysisHistograms();
+
+  n_events = 0;
+  tot_n_protons = 0;
+  n_muons = 0;
+  n_all_protons = 0;
+  low_protons = 0;
    
   // reconstructed information
   recoTree->Branch("thisRecoLength", &thisRecoLength);
@@ -431,7 +690,6 @@ void recohelper::RecoBenchmarker::beginJob()
 
 void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 {
-
   if (e.isRealData() == true) return;
  
   //auto const* theDetector = lar::providerFrom<detinfo::DetectorPropertiesService>();
@@ -469,15 +727,40 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
   std::vector< art::Ptr<simb::MCTruth> > mcTruth;
   if (e.getByLabel( fMCTruthLabel, mcTruthHandle))
     art::fill_ptr_vector(mcTruth, mcTruthHandle); 
-  
+ 
+
+  // cluster/hit handles
   art::ValidHandle< std::vector< recob::Cluster > > clusterHandle = 
     e.getValidHandle< std::vector< recob::Cluster > >(fClusterLabel);
+  std::vector< art::Ptr<recob::Cluster> > clusterList;
+  art::fill_ptr_vector( clusterList, clusterHandle);
 
   art::FindManyP<recob::Hit> hitsFromClusters(clusterHandle, e, fClusterLabel);
+  
+  art::ValidHandle< std::vector< recob::Hit > > hitHandle = 
+    e.getValidHandle< std::vector< recob::Hit > >(fHitLabel);
+  std::vector< art::Ptr<recob::Hit> > hitList;
+  art::fill_ptr_vector( hitList, hitHandle);
 
-  //art::ValidHandle< std::vector< recob::Hit > > hitHandle = 
-  //  e.getValidHandle< std::vector< recob::Hit > >(fHitLabel);
+  art::ValidHandle< std::vector< recob::PFParticle > > pfpHandle = 
+    e.getValidHandle< std::vector< recob::PFParticle > >(fPfpLabel);
+  std::vector< art::Ptr<recob::PFParticle> > pfpList;
+  art::fill_ptr_vector( pfpList, pfpHandle);
 
+  art::FindManyP<recob::Hit> hitsFromTracks( trackHandle, e, fTrackLabel);
+  art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData> MCPfromhits( hitHandle, e, fHitAssnTruthLabel);
+  art::FindManyP<recob::Hit, anab::BackTrackerHitMatchingData> hitsFromMCP( mcParticleHandle, e, fHitAssnTruthLabel);
+  
+  art::Handle< std::vector<sim::MCHitCollection> > mcHitHandle; 
+  std::vector< art::Ptr<sim::MCHitCollection> > mcHitList;
+  if (e.getByLabel( fMCHitLabel, mcHitHandle) )
+    art::fill_ptr_vector(mcHitList, mcHitHandle); 
+ 
+  art::Handle< std::vector<sim::SimChannel> > simChannelHandle; 
+  std::vector< art::Ptr<sim::SimChannel> > simChannelList;
+  if (e.getByLabel( fG4TruthLabel, simChannelHandle) )
+    art::fill_ptr_vector(simChannelList, simChannelHandle); 
+ 
   //---------------------------------
   // MCParticles
   //---------------------------------
@@ -487,7 +770,8 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 
   //loop on all MC truth frames (mostly 1 per event)
   for ( unsigned n_truth = 0; n_truth < mcTruth.size(); n_truth++ ) {
-  
+	  //std::cout << ">>>>>>>>>>>>>>>>>EVENT" << std::endl; 
+  n_events++;
   clear_vectors();
 
 #if isSingleParticle == 0 
@@ -499,6 +783,18 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
   //store the interaction info
   fccnc = thisNeutrino.CCNC();
   finteraction = thisNeutrino.InteractionType();
+ 
+  double xOffset = 0.7 - SCE->GetPosOffsets( thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z())[0];
+  double yOffset = SCE->GetPosOffsets( thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z())[1];
+  double zOffset = SCE->GetPosOffsets( thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z())[2];
+  if (!space_charge) {
+	  xOffset=0;
+	  yOffset=0;
+	  zOffset=0;
+  }
+  fneutrino_x = thisNeutrino.Nu().Position().X() + xOffset;
+  fneutrino_y = thisNeutrino.Nu().Position().Y() + yOffset;
+  fneutrino_z = thisNeutrino.Nu().Position().Z() + zOffset;
 
 #endif
   // first loop muons to find true neutrino induced muon (NIM)
@@ -603,9 +899,9 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	double yOffset = scecorr.Y();
 	double zOffset = scecorr.Z();*/
 	//anatree recipe:
-	double xOffset = 0.7 - SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z())[0];
-	double yOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z())[1];
-	double zOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z())[2];
+	xOffset = 0.7 - SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z())[0];
+	yOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z())[1];
+	zOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z())[2];
 	if (!space_charge) {
 		xOffset = 0;
 		yOffset = 0;
@@ -636,10 +932,13 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	float current_kinE = thisMcp->E() - thisMcp->Mass() ;
 	for (unsigned jj=0; jj< fkinE.size(); jj++) { //loop on previous particles
 	if ( fpdg[jj] == thisMcp->PdgCode() ) {
-	    if ( fkinE[jj] > current_kinE )
+	    if ( fkinE[jj] >= current_kinE )
 	       is_leading = false;
-		}
+	    else 
+	       fis_leading[jj] = false;
+	    } 
 	}
+	
 	fis_leading.push_back( is_leading );
 
 	//now write current kin E
@@ -653,25 +952,80 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	     fcostheta_muon.push_back(-2);
 	}
 	
+	
 	//add dummy entries for the reco variables. They will be possibly updated later, if a matching reco track is found
 	AllocateRecoVectors();
       
   } // MCParticles
+  
+  //this stays out of the previous loop but it is somewhat connected
+   for ( auto const& mcp : mcList ) {
+	   auto itt = std::find ( fg4_id.begin(), fg4_id.end(),  mcp->TrackId());
+	   if ( itt == fg4_id.end() ) continue;
+  //nhits from MCP
+	std::vector< art::Ptr < recob::Hit> > hits_mcp = hitsFromMCP.at( &mcp - &mcList[0] );
+	//std::cout <<  itt - fg4_id.begin() << " " << freco_mcp_hits.size() << std::endl;
+	freco_mcp_hits[ itt - fg4_id.begin() ] = hits_mcp.size() ;
+	
+	int n_collection_hits = 0;
+	int total_hit_charge = 0;
+	//std::cout << "NUMBER OF HITS " << hits_mcp.size() << std::endl;
+	if ( hits_mcp.size() ) {
+	//mcp hits
+	for ( auto const& iter_hit : hits_mcp ){
+		if ( iter_hit->View() == geo::kW ){	
+			n_collection_hits++;
+			total_hit_charge += iter_hit->Integral();
+		}
+	}
+	freco_mcp_collection_hits[itt - fg4_id.begin() ] =  n_collection_hits ;
+	freco_mcp_collection_charge[itt - fg4_id.begin()] = total_hit_charge ;
+	}
+   }
 
+
+
+  bool lleading = false;
+  //loop on the just saved truth info and fill a bunch of summary histograms
+  int count_protons = 0;
+  int count_protons_above = 0;
+  int count_protons_below = 0;
+  for ( unsigned ii = 0; ii < fpdg.size(); ii++ ) {
+	if ( fpdg[ii] == 2212 && fis_leading[ii] ) {
+		hproton_leading_kinE->Fill( fkinE[ii] * 1000. ); //bring it to MeV
+		if (lleading==true) std::cout << "ERROR!!!! CAN'T BE ALREADY TRUE" << std::endl;
+		lleading = true;
+	}
+	if ( fpdg[ii] == 2212 ) count_protons++;
+	if ( fpdg[ii] == 2212 && fkinE[ii] >= 0.02 ) count_protons_above++;
+	if ( fpdg[ii] == 2212 && fkinE[ii] < 0.02 ) count_protons_below++;
+  }
+	hproton_multi_all->Fill( count_protons );
+	hproton_multi_above20MeV->Fill( count_protons_above );
+	hproton_multi_below20MeV->Fill( count_protons_below );
 
   //----------------------------
   // Tracks
   //----------------------------
 
+  //I can't use thisTrack->ID() as index, because in case of Kalman Fitter failure, there could be mismatches between the number
+  //of elements in the associations and the track index. So I need to index manually. 
+  //There is an additional crosscheck for which the trackID must be increasing in the loop, just to be sure that nothing nasty is happening.
+  int track_id_counter = 0;
+  int previous_track_id = -1;
+
+  //int all_hits_tracks = 0;
   // loop tracks and do truth matching 
   for (auto const& thisTrack : trackList) {
-
-    std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromTracks.at(thisTrack->ID());
-    std::vector< art::Ptr<anab::Calorimetry> > calos = caloFromTracks.at(thisTrack->ID());
+    
+    std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromTracks.at(track_id_counter);
+    std::vector< art::Ptr<anab::Calorimetry> > calos = caloFromTracks.at(track_id_counter);
 
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same track!" << std::endl;
     if (calos.size() != 3 ) mf::LogWarning(__FUNCTION__) << "Warning !!! Calorimetry info size " << calos.size() << " != 3 associated to tracks!" << std::endl;
+    if ( previous_track_id >= thisTrack->ID() ) mf::LogError(__FUNCTION__) << "ERROR! The Track ID's are not in ascending order! " << std::endl;
 
+	
     for (auto const& thisMcp : mcps){
     
     //this if is necessary, since sometimes a particle is matched to a secondary (electron, etc) -> to be checked
@@ -695,16 +1049,30 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
     size_t pos = it_found - fg4_id.begin();
 
     //save information on reco track
-    if (fis_tracked[pos]) {
-	    mf::LogDebug() << "Probably broken track!" << std::endl;
+    if (fis_tracked[pos] == true ) {
+	    std::cout << "Probably broken track!" << std::endl;
 	    fmatch_multiplicity[pos] = fmatch_multiplicity[pos] + 1;
-    	    //decide if keeping the old info or the new one - based on the minimum track length difference
-	    if ( abs(thisTrack->Length() - flength[pos]) > abs(flength_reco[pos] - flength[pos]) )
+    	    //decide if keeping the old info or the new one - based on the minimum distance between real start and recoed end/start
+	    float start_distance = sqrt( pow( thisTrack->Vertex().X() - fstart_x[pos] , 2 ) 
+		      +  pow( thisTrack->Vertex().Y() - fstart_y[pos] , 2 )
+		      +   pow( thisTrack->Vertex().Z() - fstart_z[pos] , 2 ) );
+	    float end_distance = sqrt( pow( thisTrack->End().X() - fstart_x[pos] , 2 ) 
+		      +  pow( thisTrack->End().Y() - fstart_y[pos] , 2 )
+		      +   pow( thisTrack->End().Z() - fstart_z[pos] , 2 ) );
+	    float new_distance = min( start_distance, end_distance );
+	    start_distance = sqrt( pow( freco_startx[pos]  - fstart_x[pos] , 2 ) 
+		      +  pow( freco_starty[pos] - fstart_y[pos] , 2 )
+		      +   pow( freco_startz[pos] - fstart_z[pos] , 2 ) );
+	    end_distance = sqrt( pow( freco_endx[pos] - fstart_x[pos] , 2 ) 
+		      +  pow( freco_endy[pos] - fstart_y[pos] , 2 )
+		      +  pow(freco_endz[pos] - fstart_z[pos] , 2 ) );
+	    float old_distance = min( start_distance, end_distance );
+	    if ( old_distance < new_distance )
 		    continue;
-    } else {
+    }
+        
         fis_tracked[pos] = true;
 	fmatch_multiplicity[pos] = fmatch_multiplicity[pos] + 1;
-    }
 	flength_reco[pos] = thisTrack->Length();
 	trkf::TrackMomentumCalculator trkm; //track momentum calculator
 	trkm.SetMinLength(0); //minimum track length for momentum calculation
@@ -717,9 +1085,18 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	freco_endx[pos] = thisTrack->End().X(); 
 	freco_endy[pos] = thisTrack->End().Y(); 
 	freco_endz[pos] = thisTrack->End().Z(); 
+	freco_trackid[pos] = thisTrack->ID();
+	
+//	std::cout << "TRACK ID " << freco_trackid[pos] << " pos=" << pos << std::endl;
  	
 	if (thisMcp->PdgCode() == 13 ) { //for the muon, only when there is the info
-		if (fmuon_dqdx.size()!=0) mf::LogError(__FUNCTION__) << "Calorimetry should be filled only once!!!!" << std::endl;
+		if (fmuon_dqdx.size()!=0) {
+			mf::LogError(__FUNCTION__) << "Calorimetry should be filled only once!!!! Clearing..." << std::endl;
+			fmuon_dqdx.clear();
+			fmuon_dedx.clear();
+			fmuon_residual.clear();
+		}
+
 		for (size_t position=0; position<calos.at( geo::kCollection )->dQdx().size(); position++) {
 		fmuon_dqdx.push_back(calos.at( geo::kCollection )->dQdx()[position]); //look only at collection
 		fmuon_dedx.push_back(calos.at( geo::kCollection )->dEdx()[position]); //look only at collection
@@ -727,13 +1104,706 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 		}
 	fmuon_range = calos.at( geo::kCollection )->Range();
 	}
-
-	auto thisMcpCleanliness = mcpsFromTracks.data(thisTrack->ID()).at(0)->cleanliness;
-	auto thisMcpCompleteness = mcpsFromTracks.data(thisTrack->ID()).at(0)->completeness;
+    
+	auto thisMcpCleanliness = mcpsFromTracks.data(track_id_counter).at(0)->cleanliness;
+	auto thisMcpCompleteness = mcpsFromTracks.data(track_id_counter).at(0)->completeness;
 	fpurity[pos] = thisMcpCleanliness;
 	fcompleteness[pos] = thisMcpCompleteness;
+
+        //check association of hits <-> tracks
+	//nhits from track
+	std::vector< art::Ptr < recob::Hit> > hits_tracks = hitsFromTracks.at( track_id_counter );
+	freco_track_hits[pos] = hits_tracks.size() ;
+
+	//loop over hits, and save some information for collection hits only (for now)
+	int n_collection_hits = 0;
+	float total_hit_charge = 0;
+	//track hits
+	for ( auto const& iter_hit : hits_tracks ){
+		if ( iter_hit->View() == geo::kW ){	
+			n_collection_hits++;
+			total_hit_charge += iter_hit->Integral();
+		}
+	}
+	freco_track_collection_hits[pos] = n_collection_hits;
+	freco_track_collection_charge[pos] = total_hit_charge;
+	
     }//MCParticle
+        
+ 
+        //get clusters from the reco track, and track down which MCP's contribute to the clustered hits
+    
+	/*int nhits = 0;
+	//std::cout << ">>>>>>>Hits from track " << hits_tracks.size() << " hits from MCP " << nhits << std::endl;
+	std::cout << ">>>>>>>Hits from track " << hits_tracks.size() << " hits from MCP " << hits_mcp.size() << std::endl;
+
+	std::vector< art::Ptr < recob::Hit> > hits_tracks = hitsFromTracks.at( track_id_counter );
+	all_hits_tracks+=hits_tracks.size();
+  
+    //study the hits and the clustering
+  art::ValidHandle< std::vector< recob::Cluster > > clusterHandle = 
+    e.getValidHandle< std::vector< recob::Cluster > >(fClusterLabel);
+
+  art::FindManyP<recob::Hit> hitsFromClusters(clusterHandle, e, fClusterLabel);
+  
+  art::ValidHandle< std::vector< recob::Hit > > hitHandle = 
+    e.getValidHandle< std::vector< recob::Hit > >(fHitLabel);
+  std::vector< recob::Hit > hitList;
+  art::fill_ptr_vector( hitList, hitHandle);
+
+  art::FindManyP<recob::Hit> hitsFromTracks( trackHandle, e, fTrackLabel);
+  art::FindManyP<recob::Hit, anab::BackTrackerMatchingData> hitsFromMCP( mcParticleHandle, e, fTrackTruthLabel);
+*/
+    
+    
+        track_id_counter++;
   }//Tracks
+  
+  //----------------------------
+  // Vertex
+  //----------------------------
+  
+  art::FindManyP<recob::Vertex> vertexFromPfp(pfpHandle, e, fPfpLabel);
+  art::FindManyP<recob::Track> trackFromPfp(pfpHandle, e, fPfpLabel);
+  
+  //look for neutrino pfp
+  bool neutrino_set = false;
+  for ( auto const& pfp : pfpList ) {
+	  std::vector< art::Ptr <recob::Vertex> > vertex_pfp = vertexFromPfp.at( &pfp - &pfpList[0] );
+	  
+	  if ( vertex_pfp.size()==0 ) continue; //no vertex
+	  if ( vertex_pfp.size()>1 ) mf::LogError(__FUNCTION__) << "ERROR! There should be only 1 vertex per PFP!" <<std::endl;
+	  double xyzz[3];
+	  vertex_pfp[0]->XYZ(xyzz);
+	  
+	  if ( lar_pandora::LArPandoraHelper::IsNeutrino(pfp) ) {
+	  	  if (neutrino_set) mf::LogError(__FUNCTION__) << "There should be only 1 neutrino per PFP!!!!" << std::endl;
+		  neutrino_set = true;
+	  //save info on neutrino reco'ed vertex
+	  fnu_reco_x = xyzz[0];
+	  fnu_reco_y = xyzz[1];
+	  fnu_reco_z = xyzz[2];
+//	  fnu_reco_chi2ndf = vertex_pfp[0]->chi2PerNdof();
+	  }
+	  
+	  //investigate matching particles and tracks
+	  std::vector< art::Ptr <recob::Track> > track_pfp = trackFromPfp.at( &pfp - &pfpList[0] );
+	  if (track_pfp.size()==0) continue; //no track! (shower?)
+	  int trackid = track_pfp[0]->ID();
+	  auto iter = std::find( freco_trackid.begin(), freco_trackid.end(), trackid );
+	  if ( iter == freco_trackid.end() ) continue; //not found
+	  unsigned mc_pos = iter - freco_trackid.begin();
+          
+	  freco_vertex_x[ mc_pos ] = xyzz[0];
+	  freco_vertex_y[ mc_pos ] = xyzz[1];
+	  freco_vertex_z[ mc_pos ] = xyzz[2];
+//	  freco_vertex_chi2ndf[ mc_pos ] = vertex_pfp[0]->chi2PerNdof(); 
+  }
+
+  //std::cout << "NEUTRINO " <<  fnu_reco_x << " " << fnu_reco_y << " " << fnu_reco_z << std::endl;
+
+  int count_tracked = 0;
+  int count_not_tracked = 0;
+  bool is_lowmomentum_p = false;
+  int muon_pos = FillAnalysisHistograms( count_tracked, count_not_tracked, is_lowmomentum_p ); //plots tracking and vertexing information
+  
+  if (count_not_tracked) {
+	  std::cout << ">>>>NOT TRACKED!" << std::endl;
+	  std::cout << "Number of not tracked " << count_not_tracked << ", number of tracked " << count_tracked << std::endl;
+	  std::cout<< "Run: " << fRun << " SubRun: " << fSubRun << " Event: " << fEvent << std::endl;
+  }
+
+  art::FindManyP<recob::Cluster> clustersFromHits(hitHandle, e, fTrackLabel);
+  art::FindManyP<recob::PFParticle> pfpFromCluster(clusterHandle, e, fTrackLabel);
+  art::FindManyP<recob::PFParticle> pfpFromTrack(trackHandle, e, fTrackLabel);
+  art::FindManyP<recob::SpacePoint> spacepointFromHits( hitHandle, e, fTrackLabel );
+  
+  if (muon_pos != -1) {
+  //now loop over hits and check:
+  //-which MCP the hit belongs to
+  //-is the MCP tracked?
+  //-if is tracked, check if the hit is clustered and attributed properly to the track
+  //-if it is not tracked, save which other particle/track got the hit or if it was not clustered
+  
+  //std::cout << "SIZE: " << MCPfromhits.size() << std::endl;
+  //std::cout << "SIZE hits: " << hitList.size() << std::endl;
+  for ( auto const& hit: hitList ) {
+	  //only care at collection for now
+	if ( hit->View() != geo::kW ) continue;
+	std::vector< art::Ptr <simb::MCParticle> > mcparticle_hits = MCPfromhits.at( &hit - &hitList[0] );
+	std::vector< art::Ptr <recob::SpacePoint> > spacepoint_hits = spacepointFromHits.at( &hit - &hitList[0] );
+	art::ServiceHandle<geo::Geometry> geom;
+	double xyz[3] = { 0, 0, 0};
+	bool is_spacepoint = false;
+	if ( spacepoint_hits.size() != 1) {
+		geom->WireIDToWireGeo( hit->WireID() ).GetCenter( xyz, 0 );
+//		std::cout << "NO SPACE POINT!" << std::endl;
+	} else {
+		is_spacepoint = true;
+		xyz[0] = spacepoint_hits[0]->XYZ()[0];
+		xyz[1] = spacepoint_hits[0]->XYZ()[1];
+		xyz[2] = spacepoint_hits[0]->XYZ()[2];
+	}
+   	 
+	//std::cout << "size2 " <<  mcparticle_hits.size() << std::endl;
+	if (  mcparticle_hits.size() == 0 ) continue; 
+	unsigned index = 0;
+	for (unsigned jj=0; jj<mcparticle_hits.size(); jj++) {
+			bool is_max = MCPfromhits.data( &hit - &hitList[0] ).at( jj )->isMaxIDE;
+			if ( is_max ) {
+				index = jj;
+				//std::cout << "WARNING! Can't be already !=0" << std::endl;
+			}
+	}
+
+//	std::cout << "INDEX " << index << std::endl;
+
+	if ( index >= mcparticle_hits.size() ) {
+		mf::LogError(__FUNCTION__) << ">>>>>ERROR!!!!! There should always be 1 MCP associated to the hit! " << mcparticle_hits.size() << std::endl;
+		exit (-1);
+	}
+
+	int trackid = mcparticle_hits[index]->TrackId();
+	//lookup the originating MC particle
+	bool found = false;
+	auto iter = std::find (fg4_id.begin(), fg4_id.end(), trackid );
+	if ( iter != fg4_id.end() ) found = true;
+	else {
+		iter = std::find (fg4_id.begin(), fg4_id.end(), mcparticle_hits[index]->Mother() );
+		if ( iter != fg4_id.end() ) found = true;
+	}
+	if (!found) { 
+#if DEBUG == 1
+		std::cout<< "WARNING!!!!!!! MCParticle NOT found! " << std::endl;
+      std::cout << "---- MCParticle Information ----"
+        << "\nTrack ID   : " << mcparticle_hits[index]->TrackId() 
+        << "\nPdgCode    : " << mcparticle_hits[index]->PdgCode()
+        << "\nProcess    : " << mcparticle_hits[index]->Process()
+        << "\nStatusCode : " << mcparticle_hits[index]->StatusCode()
+        << "\nMother Pdg : " << mcparticle_hits[index]->Mother()
+        << "\nPx, Py, Pz : " << mcparticle_hits[index]->Px() << ", " << mcparticle_hits[index]->Py() << ", " << mcparticle_hits[index]->Pz()
+        << std::endl;
+#endif
+      continue;
+	}
+
+	
+
+	int mcp_index = iter - fg4_id.begin();
+
+	//freco_mcp_hits	
+  //mcp index allows me to understand if this particle is tracked or not
+      // std::cout << "clusters from hits " << clustersFromHits.size() << std::endl;
+//	       std::cout << "pos " << &hit - &hitList[0] << std::endl;
+	       std::vector< art::Ptr <recob::Cluster>> cluster_hits = clustersFromHits.at(  &hit - &hitList[0] );
+	       if ( cluster_hits.size() > 3) {
+		       //std::cout << ">>>>>>>>>>>>>>>>>>>>>>>" << clustersFromHits.size() << std::endl;
+		       mf::LogError(__FUNCTION__) << "Number of clusters must be maximum one!!!" << std::endl;
+		       exit(-1);
+	       }
+
+
+	       if ( cluster_hits.size() == 0 ) { //this hit is not clustered!
+		       
+		       fnot_clustered[mcp_index] = fnot_clustered[mcp_index] + 1;
+		       fnot_clustered_charge[mcp_index].push_back( hit->Integral() );
+		       //tracked particle, with a non-clustered hit
+			h_hits_not_clustered_tracked_charge->Fill ( hit->Integral() );
+		       if ( fis_tracked[mcp_index] ) { //check and fill histos for a MCP which is tracked
+		        if (mcp_index==muon_pos) //is muon
+			h_hits_not_clustered_tracked_charge_muon->Fill ( hit->Integral() );
+			else if (fpdg[mcp_index] == 2212) //is proton
+			h_hits_not_clustered_tracked_charge_proton->Fill ( hit->Integral() );
+
+		        
+		        if (is_spacepoint) {
+			//	std::cout << "IS SPACEPOINT" << std::endl;
+			h_tracked_not_clustered_distance_nuvtx->Fill( sqrt( pow( xyz[0] - fneutrino_x,2) + pow( xyz[1] - fneutrino_y,2) + pow( xyz[2] - fneutrino_z,2)) ); //distance between neutrino vertex z and hit z
+			if ( mcp_index==muon_pos ) { //if is muon
+			h_tracked_not_clustered_muon_start->Fill( sqrt( pow( xyz[0] - fstart_x[mcp_index],2) 
+									+ pow( fstart_y[mcp_index] - xyz[1],2) 
+									+ pow( xyz[2] - fstart_z[mcp_index],2)) ); //z distance between muon starting point and not clustered hit
+			h_tracked_not_clustered_muon_end->Fill( sqrt( pow( xyz[0] - fend_x[mcp_index],2) 
+								      + pow( fend_y[mcp_index] - xyz[1],2) 
+								      + pow( xyz[2] - fend_z[mcp_index],2)) ); //z distance between muon ending point and not clustered hit
+				} //is muon
+			if ( fpdg[mcp_index] == 2212 ) { //if is proton
+			h_tracked_not_clustered_proton_start->Fill( sqrt( pow( xyz[0] - fstart_x[mcp_index],2) 
+									  + pow( fstart_y[mcp_index] - xyz[1],2) 
+									  + pow( xyz[2] - fstart_z[mcp_index],2)), flength[mcp_index] ); //z distance between muon starting point and not clustered hit
+			h_tracked_not_clustered_proton_end->Fill( sqrt( pow( xyz[0] - fend_x[mcp_index],2) 
+									+ pow( fend_y[mcp_index] - xyz[1],2) 
+									+ pow( xyz[2] - fend_z[mcp_index],2)), flength[mcp_index] ); //z distance between muon ending point and not clustered hit
+			 }//is proton
+			}//is spacepoint
+		       } else { //the particle is not tracked
+			
+				if ( fpdg[mcp_index] ==13 ) {
+				h_fraction_pdgs_not_tracked_not_clustered->Fill(0.,1./freco_mcp_collection_hits[mcp_index]); //muon
+			  	h_hits_not_clustered_not_tracked_charge_muon->Fill ( hit->Integral() );
+				if (is_spacepoint){
+			h_not_tracked_not_clustered_muon_start->Fill( sqrt( pow( xyz[0] - fstart_x[mcp_index],2) 
+									+ pow( fstart_y[mcp_index] - xyz[1],2) 
+									+ pow( xyz[2] - fstart_z[mcp_index],2)) ); //z distance between muon starting point and not clustered hit
+			h_not_tracked_not_clustered_muon_end->Fill( sqrt( pow( xyz[0] - fend_x[mcp_index],2) 
+								      + pow( fend_y[mcp_index] - xyz[1],2) 
+								      + pow( xyz[2] - fend_z[mcp_index],2)) ); //z distance between muon ending point and not clustered hit
+				} //is spacepoint
+			} else if ( fpdg[mcp_index] == 2212 ) {
+				h_fraction_pdgs_not_tracked_not_clustered->Fill(1.,1./freco_mcp_collection_hits[mcp_index]); //proton all
+				if ( fp0[mcp_index] > 0.2)
+				h_fraction_pdgs_not_tracked_not_clustered->Fill(2.,1./freco_mcp_collection_hits[mcp_index]); //protons > 20MeV
+				else
+				h_fraction_pdgs_not_tracked_not_clustered->Fill(3.,1./freco_mcp_collection_hits[mcp_index]); //protons <20 MeV
+			  	
+				h_hits_not_clustered_not_tracked_charge_proton->Fill ( hit->Integral() );
+				if (is_spacepoint){
+			h_not_tracked_not_clustered_proton_start->Fill( sqrt( pow( xyz[0] - fstart_x[mcp_index],2) 
+									+ pow( fstart_y[mcp_index] - xyz[1],2) 
+									+ pow( xyz[2] - fstart_z[mcp_index],2)), flength[mcp_index] ); //z distance between muon starting point and not clustered hit
+			h_not_tracked_not_clustered_proton_end->Fill( sqrt( pow( xyz[0] - fend_x[mcp_index],2) 
+								      + pow( fend_y[mcp_index] - xyz[1],2) 
+								      + pow( xyz[2] - fend_z[mcp_index],2)), flength[mcp_index] ); //z distance between muon ending point and not clustered hit
+				} //is spacepoint
+		       		} //is proton
+		       } //not tracked
+		
+	       } else { //in this case the hit is clustered
+			unsigned cluster_index = 0;
+			for ( unsigned zz=0; zz<cluster_hits.size(); zz++) {
+				if ( cluster_hits[zz]->View() == geo::kW ) cluster_index = zz;
+			}
+		       
+			fclustered[mcp_index] = fclustered[mcp_index] + 1;
+			//std::cout << "SIZE1 " << fclustered.size() << " index " << mcp_index << std::endl;
+			//std::cout << "SIZE2 " << fclustered_charge.size() << " index " << mcp_index << std::endl;
+		        fclustered_charge[mcp_index].push_back( hit->Integral() );
+			
+			auto cluster_ID = cluster_hits.at(cluster_index)->ID();
+			//loop on clusters and find PFP
+			size_t pfp_id = -1;
+			for ( auto const& cluster : clusterList) {
+			if ( cluster->ID() != cluster_ID ) continue; //select the cluster I am interested in
+			std::vector< art::Ptr <recob::PFParticle> > pfp_cluster = pfpFromCluster.at( &cluster - &clusterList[0] );
+			if (pfp_cluster.size()!=1) std::cout << "MORE THAN 1 PFP!" << std::endl;
+			pfp_id = pfp_cluster[0]->Self();
+			}
+			
+			//associate the pfp to the tracks
+			for ( auto const& track : trackList) {
+			std::vector< art::Ptr <recob::PFParticle> > pfp_track = pfpFromTrack.at( &track - &trackList[0] );
+			std::vector< art::Ptr <simb::MCParticle> > mcp_track = mcpsFromTracks.at( &track - &trackList[0] );
+			unsigned mm = 0;
+			float purityy = -1;
+			for ( unsigned nn=0; nn<mcp_track.size(); nn++ ) { //select highest purity
+				if ( mcpsFromTracks.data( &track - &trackList[0] ).at( nn )->cleanliness > purityy ) {
+					purityy = mcpsFromTracks.data( &track - &trackList[0] ).at( nn )->cleanliness;
+					mm = nn;
+				}
+			}
+			if (pfp_track.size()!=1) std::cout << "MORE THAN 1 PFP per track!" << std::endl;
+			if ( pfp_track[0]->Self() != pfp_id ) continue;
+			//std::cout << "FOUND PFP" << std::endl;
+		
+			//fpdg[mcp_index] is the particle truth matched to the hit
+			//mcp_track[mm] is the particle matched to the track associated to the cluster (to which the hit is clustered)
+			if ( !fis_tracked[mcp_index] && track->ID() == freco_trackid[mcp_index] )
+				mf::LogError(__FUNCTION__) << "ERROR! This should never happen..." << std::endl;
+			
+			if ( track->ID() == freco_trackid[mcp_index] ) {
+					//the hit and track matching agree
+				fclustered_matched[mcp_index] = fclustered_matched[mcp_index] + 1;
+		                fclustered_matched_charge[mcp_index].push_back( hit->Integral() );
+			} else { //mismatch
+				if ( fpdg[mcp_index] == 13 && mcp_track[mm]->PdgCode()==13) {
+					std::cout << "Broken track!" << std::endl;
+					//std::cout << "trackid1 " << track->ID() << " trackid2 " << freco_trackid[mcp_index] << std::endl; 
+					//std::cout << "mcp_index " << mcp_index << " muon_index " << muon_pos << std::endl; 
+					//std::cout << "numero track " << &track - &trackList[0] << std::endl;
+				} else if (fpdg[mcp_index] == 2212 && fp0[mcp_index] < 0.2) {
+					std::cout << "Low proton!!!" << std:: endl;
+				} else {
+				      fhit_mismatch_pdg[mcp_index].push_back ( mcp_track[mm]->PdgCode() );
+				      fclustered_mismatched[mcp_index] = fclustered_mismatched[mcp_index] + 1;
+		                      fclustered_mismatched_charge[mcp_index].push_back( hit->Integral() );
+				}
+			}
+			
+		} //tracklist
+	       }//is clustered
+	//is it clustered?
+	//is it attached to a track?
+	//are those the right track and the right cluster?
+	//check protons and merged protons
+
+  } // loop on hits
+
+  //now fill histograms on hit merging
+  for (unsigned jj=0; jj<fpdg.size(); jj++) {
+
+	  if ( count_not_tracked == 0 ) { //all protons above 20MeV are tracked
+	  if ( fpdg[jj]==13 ) {
+		  if ( freco_mcp_collection_hits[jj] ) {
+		  h_muon_clustering_prob_good_protons->Fill(0., float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  h_muon_clustering_prob_good_protons->Fill(1., float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  h_muon_clustering_prob_good_protons->Fill(2., float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  }
+		
+		  for (unsigned ii=0; ii<fhit_mismatch_pdg[jj].size(); ii++)
+		  h_muon_clustering_mismatch_pdg_good_protons->Fill(fhit_mismatch_pdg[jj][ii]);	
+
+		  if ( fnot_clustered[jj] > 0) 
+		  h_muon_not_clustered_reco_hits_good_protons->Fill( fnot_clustered[jj] , freco_mcp_collection_hits[jj] );
+		  if ( fclustered_matched[jj] > 0) 
+		  h_muon_clustered_matched_reco_hits_good_protons->Fill( fclustered_matched[jj] , freco_mcp_collection_hits[jj] );
+		  if ( fclustered_mismatched[jj] > 0) 
+		  h_muon_clustered_mismatched_reco_hits_good_protons->Fill( fclustered_mismatched[jj] , freco_mcp_collection_hits[jj] );
+                  
+		  for ( unsigned ii=0; ii< fnot_clustered_charge[jj].size(); ii++ ) 
+		  h_muon_not_clustered_reco_charge_good_protons->Fill( fnot_clustered_charge[jj][ii], float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]) );
+		  for ( unsigned ii=0; ii< fclustered_matched_charge[jj].size(); ii++ ) 
+		  h_muon_clustered_matched_reco_charge_good_protons->Fill( fclustered_matched_charge[jj][ii], float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]) );
+		  for ( unsigned ii=0; ii< fclustered_mismatched_charge[jj].size(); ii++ ) 
+		  h_muon_clustered_mismatched_reco_charge_good_protons->Fill( fclustered_mismatched_charge[jj][ii], float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]) );
+		  
+		  for ( unsigned zz=0; zz<fpdg.size(); zz++) {
+			  if (fpdg[zz]!=2212) continue;
+		  if (fnot_clustered[jj]) {
+		  h_muon_NC_lateral_hits_good_protons->Fill( float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]),  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_NC_costheta_hits_good_protons->Fill( float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[zz]  ); //lateral distance between muon and proton
+		  }
+		  if (fclustered_matched[jj]) {
+		  h_muon_CMA_lateral_hits_good_protons->Fill( float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]),  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_CMA_costheta_hits_good_protons->Fill( float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[zz]  ); //lateral distance between muon and proton
+		  }
+		  if (fclustered_mismatched[jj]){
+		  h_muon_CMI_lateral_hits_good_protons->Fill( float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]),  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_CMI_costheta_hits_good_protons->Fill( float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[zz]  ); //lateral distance between muon and proton
+		  }
+
+		  for ( unsigned ii=0; ii< fnot_clustered_charge[jj].size(); ii++ ) {
+                  h_muon_NC_lateral_charge_good_protons->Fill( fnot_clustered_charge[jj][ii],  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_NC_costheta_charge_good_protons->Fill( fnot_clustered_charge[jj][ii], fcostheta_muon[zz] ); //lateral distance between muon and proton
+		  }
+		  for ( unsigned ii=0; ii< fclustered_matched_charge[jj].size(); ii++ ) {
+                  h_muon_CMA_lateral_charge_good_protons->Fill( fclustered_matched_charge[jj][ii],  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_CMA_costheta_charge_good_protons->Fill( fclustered_matched_charge[jj][ii], fcostheta_muon[zz] ); //lateral distance between muon and proton
+		  }
+		  for ( unsigned ii=0; ii< fclustered_mismatched_charge[jj].size(); ii++ ) {
+                  h_muon_CMI_lateral_charge_good_protons->Fill( fclustered_mismatched_charge[jj][ii],  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_CMI_costheta_charge_good_protons->Fill( fclustered_mismatched_charge[jj][ii], fcostheta_muon[zz] ); //lateral distance between muon and proton
+		  }
+		  } //fpdg
+		  } //muon
+	  
+	  if (fpdg[jj] ==2212 && fis_tracked[jj]) {
+
+		  if ( freco_mcp_collection_hits[jj] ) {
+		  h_proton_clustering_prob_good_protons->Fill(0., float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  h_proton_clustering_prob_good_protons->Fill(1., float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  h_proton_clustering_prob_good_protons->Fill(2., float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  }
+
+		  for (unsigned ii=0; ii<fhit_mismatch_pdg[jj].size(); ii++)
+		  h_proton_clustering_mismatch_pdg_good_protons->Fill(fhit_mismatch_pdg[jj][ii]);	
+
+		  if (fnot_clustered[jj]) {
+		  h_proton_not_clustered_reco_hits_good_protons->Fill( fnot_clustered[jj] , freco_mcp_collection_hits[jj] );
+                  h_proton_NC_lateral_hits_good_protons->Fill( float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]),  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between proton and proton
+                  h_proton_NC_costheta_hits_good_protons->Fill( float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[jj]  ); //lateral distance between muon and proton
+		  }
+		  if (fclustered_matched[jj]) {
+		  h_proton_clustered_matched_reco_hits_good_protons->Fill( fclustered_matched[jj] , freco_mcp_collection_hits[jj] );
+                  h_proton_CMA_lateral_hits_good_protons->Fill( float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]),  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between proton and proton
+                  h_proton_CMA_costheta_hits_good_protons->Fill( float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[jj]  ); //lateral distance between muon and proton
+		  }
+		  if (fclustered_mismatched[jj]) {
+		  h_proton_clustered_mismatched_reco_hits_good_protons->Fill( fclustered_mismatched[jj] , freco_mcp_collection_hits[jj] );
+                  h_proton_CMI_lateral_hits_good_protons->Fill( float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]),  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between proton and proton
+                  h_proton_CMI_costheta_hits_good_protons->Fill( float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[jj]  ); //lateral distance between muon and proton
+		  }
+		 
+		  for ( unsigned ii=0; ii< fnot_clustered_charge[jj].size(); ii++ ) {
+		  h_proton_not_clustered_reco_charge_good_protons->Fill( fnot_clustered_charge[jj][ii], float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]) );
+                  h_proton_NC_lateral_charge_good_protons->Fill( fnot_clustered_charge[jj][ii],  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between muon and proton
+                  h_proton_NC_costheta_charge_good_protons->Fill( fnot_clustered_charge[jj][ii], fcostheta_muon[jj] ); //lateral distance between muon and proton
+		  }
+		  for ( unsigned ii=0; ii< fclustered_matched_charge[jj].size(); ii++ ) {
+		  h_proton_clustered_matched_reco_charge_good_protons->Fill( fclustered_matched_charge[jj][ii], float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]) );
+                  h_proton_CMA_lateral_charge_good_protons->Fill( fclustered_matched_charge[jj][ii],  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between muon and proton
+                  h_proton_CMA_costheta_charge_good_protons->Fill( fclustered_matched_charge[jj][ii], fcostheta_muon[jj] ); //lateral distance between muon and proton
+		  }
+		  for ( unsigned ii=0; ii< fclustered_mismatched_charge[jj].size(); ii++ ) {
+		  h_proton_clustered_mismatched_reco_charge_good_protons->Fill( fclustered_mismatched_charge[jj][ii], float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]) );
+                  h_proton_CMI_lateral_charge_good_protons->Fill( fclustered_mismatched_charge[jj][ii],  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between muon and proton
+                  h_proton_CMI_costheta_charge_good_protons->Fill( fclustered_mismatched_charge[jj][ii], fcostheta_muon[jj] ); //lateral distance between muon and proton
+		  }
+	     }//proton
+
+	  } //if all are tracked
+	  
+if ( count_not_tracked > 0 ) { //some are not tracked
+	  
+	if ( fpdg[jj]==13 ) { //the muon is tracked by definition
+		  if ( freco_mcp_collection_hits[jj] ) {
+		  h_muon_clustering_prob_bad_protons->Fill(0., float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  h_muon_clustering_prob_bad_protons->Fill(1., float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  h_muon_clustering_prob_bad_protons->Fill(2., float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  }
+
+		  for (unsigned ii=0; ii<fhit_mismatch_pdg[jj].size(); ii++)
+		  h_muon_clustering_mismatch_pdg_bad_protons->Fill(fhit_mismatch_pdg[jj][ii]);	
+		 
+		  if (fnot_clustered[jj])
+		  h_muon_not_clustered_reco_hits_bad_protons->Fill( fnot_clustered[jj] , freco_mcp_collection_hits[jj] );
+		  if (fclustered_matched[jj])
+		  h_muon_clustered_matched_reco_hits_bad_protons->Fill( fclustered_matched[jj] , freco_mcp_collection_hits[jj] );
+		  if (fclustered_mismatched[jj])
+		  h_muon_clustered_mismatched_reco_hits_bad_protons->Fill( fclustered_mismatched[jj] , freco_mcp_collection_hits[jj] );
+		  
+		  for ( unsigned ii=0; ii< fnot_clustered_charge[jj].size(); ii++ ) 
+		  h_muon_not_clustered_reco_charge_bad_protons->Fill( fnot_clustered_charge[jj][ii], float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]) );
+		  for ( unsigned ii=0; ii< fclustered_matched_charge[jj].size(); ii++ ) 
+		  h_muon_clustered_matched_reco_charge_bad_protons->Fill( fclustered_matched_charge[jj][ii], float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]) );
+		  for ( unsigned ii=0; ii< fclustered_mismatched_charge[jj].size(); ii++ ) 
+		  h_muon_clustered_mismatched_reco_charge_bad_protons->Fill( fclustered_mismatched_charge[jj][ii], float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]) );
+
+		  for ( unsigned zz=0; zz<fpdg.size(); zz++) {
+			  if (fpdg[zz]!=2212) continue;
+                  if (fnot_clustered[jj]) {
+		  h_muon_NC_lateral_hits_bad_protons->Fill( float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]),  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_NC_costheta_hits_bad_protons->Fill( float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[zz]  ); //lateral distance between muon and proton
+		  }
+		  if (fclustered_matched[jj]) {
+                  h_muon_CMA_lateral_hits_bad_protons->Fill( float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]),  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_CMA_costheta_hits_bad_protons->Fill( float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[zz]  ); //lateral distance between muon and proton
+		  }
+		  if (fclustered_mismatched[jj]){
+                  h_muon_CMI_lateral_hits_bad_protons->Fill( float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]),  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_CMI_costheta_hits_bad_protons->Fill( float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[zz]  ); //lateral distance between muon and proton
+		  }
+		 
+		  for ( unsigned ii=0; ii< fnot_clustered_charge[jj].size(); ii++ ) {
+                  h_muon_NC_lateral_charge_bad_protons->Fill( fnot_clustered_charge[jj][ii],  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_NC_costheta_charge_bad_protons->Fill( fnot_clustered_charge[jj][ii], fcostheta_muon[zz] ); //lateral distance between muon and proton
+		  }
+		  for ( unsigned ii=0; ii< fclustered_matched_charge[jj].size(); ii++ ) {
+                  h_muon_CMA_lateral_charge_bad_protons->Fill( fclustered_matched_charge[jj][ii],  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_CMA_costheta_charge_bad_protons->Fill( fclustered_matched_charge[jj][ii], fcostheta_muon[zz] ); //lateral distance between muon and proton
+		  }
+		  for ( unsigned ii=0; ii< fclustered_mismatched_charge[jj].size(); ii++ ) {
+                  h_muon_CMI_lateral_charge_bad_protons->Fill( fclustered_mismatched_charge[jj][ii],  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_CMI_costheta_charge_bad_protons->Fill( fclustered_mismatched_charge[jj][ii], fcostheta_muon[zz] ); //lateral distance between muon and proton
+		  }
+		  } //fpdg
+		} //muon
+	  
+	if (fpdg[jj] ==2212 && fis_tracked[jj]) {
+		  if ( freco_mcp_collection_hits[jj] ) {
+		  h_proton_clustering_prob_bad_protons->Fill(0., float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  h_proton_clustering_prob_bad_protons->Fill(1., float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  h_proton_clustering_prob_bad_protons->Fill(2., float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  } 
+		  for (unsigned ii=0; ii<fhit_mismatch_pdg[jj].size(); ii++) 
+		  h_proton_clustering_mismatch_pdg_bad_protons->Fill(fhit_mismatch_pdg[jj][ii]);	
+
+		  if (fnot_clustered[jj]) {
+		  h_proton_not_clustered_reco_hits_bad_protons->Fill( fnot_clustered[jj] , freco_mcp_collection_hits[jj] );
+                  h_proton_NC_lateral_hits_bad_protons->Fill( float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]),  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between proton and proton
+                  h_proton_NC_costheta_hits_bad_protons->Fill( float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[jj]  ); //lateral distance between muon and proton
+		  }
+		  if (fclustered_matched[jj]){
+		  h_proton_clustered_matched_reco_hits_bad_protons->Fill( fclustered_matched[jj] , freco_mcp_collection_hits[jj] );
+                  h_proton_CMA_lateral_hits_bad_protons->Fill( float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]),  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between proton and proton
+                  h_proton_CMA_costheta_hits_bad_protons->Fill( float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[jj]  ); //lateral distance between muon and proton
+		  }
+		  if (fclustered_mismatched[jj]){
+		  h_proton_clustered_mismatched_reco_hits_bad_protons->Fill( fclustered_mismatched[jj] , freco_mcp_collection_hits[jj] );
+                  h_proton_CMI_lateral_hits_bad_protons->Fill( float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]),  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between proton and proton
+                  h_proton_CMI_costheta_hits_bad_protons->Fill( float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[jj]  ); //lateral distance between muon and proton
+		  }
+
+		  for ( unsigned ii=0; ii< fnot_clustered_charge[jj].size(); ii++ ) {
+		  h_proton_not_clustered_reco_charge_bad_protons->Fill( fnot_clustered_charge[jj][ii], float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]) );
+                  h_proton_NC_lateral_charge_bad_protons->Fill( fnot_clustered_charge[jj][ii],  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between muon and proton
+                  h_proton_NC_costheta_charge_bad_protons->Fill( fnot_clustered_charge[jj][ii], fcostheta_muon[jj] ); //lateral distance between muon and proton
+		  }
+		  for ( unsigned ii=0; ii< fclustered_matched_charge[jj].size(); ii++ ) {
+		  h_proton_clustered_matched_reco_charge_bad_protons->Fill( fclustered_matched_charge[jj][ii], float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]) );
+                  h_proton_CMA_lateral_charge_bad_protons->Fill( fclustered_matched_charge[jj][ii],  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between muon and proton
+                  h_proton_CMA_costheta_charge_bad_protons->Fill( fclustered_matched_charge[jj][ii], fcostheta_muon[jj] ); //lateral distance between muon and proton
+		  }
+		  for ( unsigned ii=0; ii< fclustered_mismatched_charge[jj].size(); ii++ ) {
+		  h_proton_clustered_mismatched_reco_charge_bad_protons->Fill( fclustered_mismatched_charge[jj][ii], float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]) );
+                  h_proton_CMI_lateral_charge_bad_protons->Fill( fclustered_mismatched_charge[jj][ii],  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between muon and proton
+                  h_proton_CMI_costheta_charge_bad_protons->Fill( fclustered_mismatched_charge[jj][ii], fcostheta_muon[jj] ); //lateral distance between muon and proton
+		  }
+	  } //protons && is tracked 
+	
+	if ( fpdg[jj] == 2212 && !fis_tracked[jj] ) {
+		  if ( freco_mcp_collection_hits[jj] ) {
+		  h_proton_clustering_prob_bad_protons_not_tracked->Fill(0., float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  h_proton_clustering_prob_bad_protons_not_tracked->Fill(1., float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  h_proton_clustering_prob_bad_protons_not_tracked->Fill(2., float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  }
+		  for (unsigned ii=0; ii<fhit_mismatch_pdg[jj].size(); ii++)
+		  h_proton_clustering_mismatch_pdg_bad_protons_not_tracked->Fill(fhit_mismatch_pdg[jj][ii]);	
+		 
+		  if (fnot_clustered[jj]){
+		  h_proton_not_clustered_reco_hits_bad_protons_not_tracked->Fill( fnot_clustered[jj] , freco_mcp_collection_hits[jj] );
+                  h_proton_NC_lateral_hits_bad_protons_not_tracked->Fill( float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]),  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between proton and proton
+                  h_proton_NC_costheta_hits_bad_protons_not_tracked->Fill( float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[jj]  ); //lateral distance between muon and proton
+		  }
+		  if (fclustered_matched[jj]){
+		  h_proton_clustered_matched_reco_hits_bad_protons_not_tracked->Fill( fclustered_matched[jj] , freco_mcp_collection_hits[jj] );
+                  h_proton_CMA_lateral_hits_bad_protons_not_tracked->Fill( float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]),  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between proton and proton
+                  h_proton_CMA_costheta_hits_bad_protons_not_tracked->Fill( float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[jj]  ); //lateral distance between muon and proton
+		  }
+		  if (fclustered_mismatched[jj]){
+		  h_proton_clustered_mismatched_reco_hits_bad_protons_not_tracked->Fill( fclustered_mismatched[jj] , freco_mcp_collection_hits[jj] );
+                  h_proton_CMI_lateral_hits_bad_protons_not_tracked->Fill( float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]),  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between proton and proton
+                  h_proton_CMI_costheta_hits_bad_protons_not_tracked->Fill( float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[jj]  ); //lateral distance between muon and proton
+		  }
+
+		  for ( unsigned ii=0; ii< fnot_clustered_charge[jj].size(); ii++ ) {
+		  h_proton_not_clustered_reco_charge_bad_protons_not_tracked->Fill( fnot_clustered_charge[jj][ii], float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]) );
+                  h_proton_NC_lateral_charge_bad_protons_not_tracked->Fill( fnot_clustered_charge[jj][ii],  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between muon and proton
+                  h_proton_NC_costheta_charge_bad_protons_not_tracked->Fill( fnot_clustered_charge[jj][ii], fcostheta_muon[jj] ); //lateral distance between muon and proton
+		  }
+		  for ( unsigned ii=0; ii< fclustered_matched_charge[jj].size(); ii++ ) {
+		  h_proton_clustered_matched_reco_charge_bad_protons_not_tracked->Fill( fclustered_matched_charge[jj][ii], float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]) );
+                  h_proton_CMA_lateral_charge_bad_protons_not_tracked->Fill( fclustered_matched_charge[jj][ii],  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between muon and proton
+                  h_proton_CMA_costheta_charge_bad_protons_not_tracked->Fill( fclustered_matched_charge[jj][ii], fcostheta_muon[jj] ); //lateral distance between muon and proton
+		  }
+		  for ( unsigned ii=0; ii< fclustered_mismatched_charge[jj].size(); ii++ ) {
+		  h_proton_clustered_mismatched_reco_charge_bad_protons_not_tracked->Fill( fclustered_mismatched_charge[jj][ii], float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]) );
+                  h_proton_CMI_lateral_charge_bad_protons_not_tracked->Fill( fclustered_mismatched_charge[jj][ii],  flength[jj] * sqrt( 1 - pow( fcostheta_muon[jj] ,2 ) ) ); //lateral distance between muon and proton
+                  h_proton_CMI_costheta_charge_bad_protons_not_tracked->Fill( fclustered_mismatched_charge[jj][ii], fcostheta_muon[jj] ); //lateral distance between muon and proton
+		  }
+		} //proton && ! is tracked
+
+}  //some are not tracked
+	  
+  if ( is_lowmomentum_p ) { //only protons below 20MeV, none is tracked
+	if ( fpdg[jj]==13 ) { //the muon is tracked by definition
+		  if ( freco_mcp_collection_hits[jj] ) {
+		  h_muon_clustering_prob_low_protons->Fill(0., float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  h_muon_clustering_prob_low_protons->Fill(1., float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  h_muon_clustering_prob_low_protons->Fill(2., float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]) );	
+		  }
+		  for (unsigned ii=0; ii<fhit_mismatch_pdg[jj].size(); ii++)
+		  h_muon_clustering_mismatch_pdg_low_protons->Fill(fhit_mismatch_pdg[jj][ii]);	
+		  
+		  for ( unsigned ii=0; ii< fnot_clustered_charge[jj].size(); ii++ )
+		  h_muon_not_clustered_reco_charge_low_protons->Fill( fnot_clustered_charge[jj][ii], float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]) );
+		  for ( unsigned ii=0; ii< fclustered_matched_charge[jj].size(); ii++ )
+		  h_muon_clustered_matched_reco_charge_low_protons->Fill( fclustered_matched_charge[jj][ii], float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]) );
+		  for ( unsigned ii=0; ii< fclustered_mismatched_charge[jj].size(); ii++ )
+		  h_muon_clustered_mismatched_reco_charge_low_protons->Fill( fclustered_mismatched_charge[jj][ii], float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]) );
+		  
+		  for ( unsigned zz=0; zz<fpdg.size(); zz++) {
+			  if (fpdg[zz]!=2212) continue;
+		  if (fnot_clustered[jj]) {
+		  h_muon_not_clustered_reco_hits_low_protons->Fill( fnot_clustered[jj] , freco_mcp_collection_hits[jj] );
+                  h_muon_NC_lateral_hits_low_protons->Fill( float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]),  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_NC_costheta_hits_low_protons->Fill( float(fnot_clustered[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[zz]  ); //lateral distance between muon and proton
+		  } 
+		  if (fclustered_matched[jj]) {
+		  h_muon_clustered_matched_reco_hits_low_protons->Fill( fclustered_matched[jj] , freco_mcp_collection_hits[jj] );
+                  h_muon_CMA_lateral_hits_low_protons->Fill( float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]),  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_CMA_costheta_hits_low_protons->Fill( float(fclustered_matched[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[zz]  ); //lateral distance between muon and proton
+		  }
+		  if (fclustered_mismatched[jj]) {
+		  h_muon_clustered_mismatched_reco_hits_low_protons->Fill( fclustered_mismatched[jj] , freco_mcp_collection_hits[jj] );
+                  h_muon_CMI_lateral_hits_low_protons->Fill( float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]),  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_CMI_costheta_hits_low_protons->Fill( float(fclustered_mismatched[jj])/float(freco_mcp_collection_hits[jj]),  fcostheta_muon[zz]  ); //lateral distance between muon and proton
+		  }
+
+		  for ( unsigned ii=0; ii< fnot_clustered_charge[jj].size(); ii++ ) {
+                  h_muon_NC_lateral_charge_low_protons->Fill( fnot_clustered_charge[jj][ii],  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_NC_costheta_charge_low_protons->Fill( fnot_clustered_charge[jj][ii], fcostheta_muon[zz] ); //lateral distance between muon and proton
+		  }
+		  for ( unsigned ii=0; ii< fclustered_matched_charge[jj].size(); ii++ ) {
+                  h_muon_CMA_lateral_charge_low_protons->Fill( fclustered_matched_charge[jj][ii],  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_CMA_costheta_charge_low_protons->Fill( fclustered_matched_charge[jj][ii], fcostheta_muon[zz] ); //lateral distance between muon and proton
+		  }
+		  for ( unsigned ii=0; ii< fclustered_mismatched_charge[jj].size(); ii++ ) {
+                  h_muon_CMI_lateral_charge_low_protons->Fill( fclustered_mismatched_charge[jj][ii],  flength[zz] * sqrt( 1 - pow( fcostheta_muon[zz] ,2 ) ) ); //lateral distance between muon and proton
+                  h_muon_CMI_costheta_charge_low_protons->Fill( fclustered_mismatched_charge[jj][ii], fcostheta_muon[zz] ); //lateral distance between muon and proton
+		  }
+		    } //fpdg
+		  } //muon
+	  	} //low p
+
+  } //loop on MCP for hit merging histograms
+	
+/*
+  //MC total amount of hits (or something like that)
+	  float tot_electrons = 0;
+  for ( auto const& simch: simChannelList ) {
+	  auto map = simch->TDCIDEMap();
+	  for (auto const& it: map) {
+		for (auto const& it2: it.second) 
+		  tot_electrons+=it2.numElectrons;	
+	  }
+  }
+
+
+    int all_hits_mcp = 0;
+    for (auto const& mccp: mcList) {
+    if ( !(std::abs(mccp->PdgCode()) == 11 && mccp->Mother() == muon_id && abs(mccp->Position().X()-muon_endx) < DBL_EPSILON &&
+		    abs(mccp->Position().Y()-muon_endy) < DBL_EPSILON && abs(mccp->Position().Z()-muon_endz) < DBL_EPSILON ) )
+    if ( std::abs(mccp->PdgCode()) == 14 || mccp->Process()!="primary" || mccp->StatusCode()!=1 || mccp->Mother()>0 ) continue; //we only want primaries
+    all_hits_mcp += hitsFromMCP.at( &mccp - &mcList[0] ).size();
+    }
+
+    for (auto const& mccp: mcList) {
+    if ( !(std::abs(mccp->PdgCode()) == 11 && mccp->Mother() == muon_id && abs(mccp->Position().X()-muon_endx) < DBL_EPSILON &&
+		    abs(mccp->Position().Y()-muon_endy) < DBL_EPSILON && abs(mccp->Position().Z()-muon_endz) < DBL_EPSILON ) )
+    if ( std::abs(mccp->PdgCode()) == 14 || mccp->Process()!="primary" || mccp->StatusCode()!=1 || mccp->Mother()>0 ) continue; //we only want primaries
+    	float hits_this_mcp = 0;
+	std::vector< art::Ptr < recob::Hit> > hits_mcp = hitsFromMCP.at( &mccp - &mcList[0] );
+	for (auto const& hit: hits_mcp) {
+	//bool max = hitsFromMCP.data( &mccp - &mcList[0] ).at( &hit - &hits_mcp[0] )->isMaxIDE;
+	//bool max2 = hitsFromMCP.data( &mccp - &mcList[0] ).at( &hit - &hits_mcp[0] )->isMaxIDEN;
+	//hits_this_mcp += hitsFromMCP.data( &mccp - &mcList[0] ).at( &hit - &hits_mcp[0] )->ideNFraction * hit->Integral() ;
+	hits_this_mcp += hitsFromMCP.data( &mccp - &mcList[0] ).at( &hit - &hits_mcp[0] )->numElectrons ;
+	cout << "hits " << hitsFromMCP.data( &mccp - &mcList[0] ).at( &hit - &hits_mcp[0] )->energy << endl; 
+	cout << "size " << hitsFromMCP.data( &mccp - &mcList[0] ).size() << endl; 
+	cout << "ide " << hitsFromMCP.data( &mccp - &mcList[0] ).at( &hit - &hits_mcp[0] )->ideFraction << endl; 
+	cout << "electrons " << hitsFromMCP.data( &mccp - &mcList[0] ).at( &hit - &hits_mcp[0] )->numElectrons << endl; 
+	//if ( hit->View() == geo::kCollection ) hits_this_mcp += hit->Integral() ;
+	}
+	float tmp = 0;
+    for (auto const& aa: mcHitList) {
+	    	for ( unsigned i=0; i<aa->size(); i++) {
+	        if ( aa->at(i).PartTrackId() == mccp->TrackId())
+			tmp+=aa->at(i).Charge();
+		}
+    }
+    	//std::cout << "This MCP pdg=" << mccp->PdgCode() << " reco-matched hits: " << hits_this_mcp << " mctruth hits: " << tmp << std:: endl;
+
+    tmp=0;
+    for (auto const& simchannel: simChannelList) {
+	    auto ides = simchannel->TrackIDEs(0,100000);
+	    for (auto const& ide: ides) {
+		if (ide.trackID == mccp->TrackId()) tmp+=ide.numElectrons;
+	    }
+    	}
+    	std::cout << "This MCP pdg=" << mccp->PdgCode() << " reco-matched hits: " << hits_this_mcp/all_hits_mcp << " mctruth hits: " << tmp/tot_electrons << std:: endl;
+    }
+
+    for (auto const& aa: mcHitList) {
+	    std::cout << "ch: " << aa->Channel() << " MCHitCollection size " << aa->size() << std::endl;
+	    	for ( unsigned i=0; i<aa->size(); i++) {
+	        std::cout << "charge " << aa->at(i).Charge() << " partID " << aa->at(i).PartTrackId() << std::endl;
+		}
+*/	    
+    //for (auto const& bb: aa) {
+	//    std::cout << "charge " << bb->Charge() << " partID " << bb->PartTrackId() << std::endl;
+   // }
+   // }
+  //std::cout << ">>>><<<< TOTAL HITS: " << hitList.size() << " HITS FROM MCPS: " << all_hits_mcp << " TOTAL HITS FROM TRACKS: " << all_hits_tracks << " TOTAL MC HITS: " << mcHitList.size() << std::endl;
 
   /*
   // loop tracks and do truth matching to find neutrino induced muon
@@ -978,17 +2048,28 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
     it++;
   }
   */
+	
+  } // good muon
+
+  //make hit plots
+		        
+  //for (unsigned ii=0; ii<fnot_clustered_tracked.size(); ii++) {
+//	  if ( fpdg[ii] == 13 ) h_hit_fraction_notclustered_tracked_muon->Fill( fnot_clustered_tracked[ii] );
+//	  if ( fpdg[ii] == 2212 ) h_hit_fraction_notclustered_tracked_proton->Fill( fnot_clustered_tracked[ii] );
+  //}
 
   recoTree->Fill();
-
-  FillAnalysisHistograms();
-
   } //MCtruth
   
 
 }
 
 void recohelper::RecoBenchmarker::AllocateAnalysisHistograms() {
+   hproton_multi_all = tfs->make<TH1D>("proton_multi_all","Proton multiplicity for all CC events;# protons;# of events normalized",20,-0.5,19.5); //proton multiplicity
+   hproton_leading_kinE = tfs->make<TH1D>("proton_leading_kinE","Leading proton kinE;Kinetic Energy (MeV);",4000,0,4000); //leading proton kinE
+   hproton_multi_above20MeV = tfs->make<TH1D>("proton_multi_above20MeV","Proton multiplicity above 20MeV;# protons;# of events normalized",20,-0.5,19.5); //proton multiplicity
+   hproton_multi_below20MeV = tfs->make<TH1D>("proton_multi_below20MeV","Proton multiplicity below 20MeV;# protons;# of events normalized",20,-0.5,19.5); //proton multiplicity
+   hproton_merged_not_merged = tfs->make<TH1D>("proton_merged_not_merged","Proton merged vs not merged (above 20MeV); true/false ;# of protons normalized",2,-0.5,1.5); //proton merged/not merged
    
    hmuon_pos_res = tfs->make<TH1D>("muon_pos_res","All reco muons;Reco - True Muon start position (cm);",1000,0,50); //displacement between real muon start position and reco
    hmuon_pos_res_goodprotons = tfs->make<TH1D>("muon_pos_res_goodprotons","All reco muons with good proton reco (>20MeV);Reco - True Muon start position (cm);",1000,0,50); //displacement between real muon start position and reco for events with all reco protons
@@ -1005,13 +2086,14 @@ void recohelper::RecoBenchmarker::AllocateAnalysisHistograms() {
    hmuon_length_all = tfs->make<TH1D>("muon_length_all","Muon length; True Length (cm);",1000,0,1000); //all of them, not just reco
    hproton_kinE = tfs->make<TH1D>("proton_kinE","Proton reco efficiency; Kinetic Energy (GeV)",1000,0,2); //reco efficiency protons vs kin E
    hproton_kinE_all = tfs->make<TH1D>("proton_kinE_all","Proton reco efficiency; Kinetic Energy (GeV)",1000,0,2); //reco efficiency protons vs kin E
-   hproton_p = tfs->make<TH1D>("proton_p","Proton reco efficiency; Momentum (MeV/c)",1000,0,10); //reco efficiency protons vs p
-   hproton_p_all = tfs->make<TH1D>("proton_p_all","Proton reco efficiency; Momentum (MeV/c)",1000,0,10); //reco efficiency protons vs p
+   hproton_p = tfs->make<TH1D>("proton_p","Proton reco efficiency; Momentum (GeV/c)",1000,0,10); //reco efficiency protons vs p
+   hproton_p_all = tfs->make<TH1D>("proton_p_all","Proton reco efficiency; Momentum (GeV/c)",1000,0,10); //reco efficiency protons vs p
    hproton_l = tfs->make<TH1D>("proton_l","Proton reco efficiency; True length (cm)",1000,0,200); //reco efficiency protons vs p
    hproton_l_all = tfs->make<TH1D>("proton_l_all","Proton reco efficiency; True length (cm)",1000,0,200); //reco efficiency protons vs p
    h_pmu_end_not_tracked = tfs->make<TH1D>("pmu_end_not_tracked","Not Tracked protons;Distance (cm);",1000,0,100); //lateral distance between proton end and muon
    h_pmu_end_tracked = tfs->make<TH1D>("pmu_end_tracked","Tracked protons;Distance (cm);",1000,0,100); //lateral distance between proton end and muon
    h_theta_mu_tracked = tfs->make<TH1D>("theta_mu_tracked","Cos #theta between muon and tracked protons;cos #theta",1000,-1,1); //costheta between muon and tracked protons
+   hproton_theta_mu = tfs->make<TH1D>("proton_theta_mu","Cos #theta between muon and all protons >20MeV;cos #theta",1000,-1,1); //costheta between muon and tracked protons
    h_theta_mu_not_tracked = tfs->make<TH1D>("theta_mu_not_tracked","Cos #theta between muon and non tracked protons;cos #theta",1000,-1,1);
    h_theta_mu = tfs->make<TH1D>("theta_mu","Cos #theta between muon and protons;cos #theta",1000,-1,1); //true costheta between muon and protons
    h_theta_mu_length = tfs->make<TH2D>("theta_mu_length","Tracking efficiency vs (length, cos #theta_{p#mu});Cos #theta; l (cm)",1000,-1,1,1000,0,100);
@@ -1029,16 +2111,179 @@ void recohelper::RecoBenchmarker::AllocateAnalysisHistograms() {
    h_dqdx_merged_service = tfs->make<TH2D>("dqdx_merged_service","dqdx_merged_service",2500,0,250,1500,0,1500);
    h_dqdx_not_merged_service = tfs->make<TH2D>("dqdx_not_merged_service","dqdx_not_merged_service",2500,0,250,1500,0,1500);
    h_dqdx_low_protons_service = tfs->make<TH2D>("dqdx_low_protons_service","dqdx_low_protons_service",2500,0,250,1500,0,1500);
+
+   //vertex resolution
+   h_vertex_resolution_neutrino = tfs->make<TH1D>("vertex_resolution_neutrino","Vertex resolution for neutrino vertexes",1000,0,100);
+   h_vertex_resolution_proton = tfs->make<TH1D>("vertex_resolution_proton","Vertex resolution for proton vertexes",1000,0,100);
+   h_vertex_resolution_muon = tfs->make<TH1D>("vertex_resolution_muon","Vertex resolution for muon vertexes",1000,0,100);
+   h_vertex_resolution_neutrino_not_merged = tfs->make<TH1D>("vertex_resolution_neutrino_not_merged","Vertex resolution for neutrino vertexes for NON merged protons",1000,0,100);
+   h_vertex_resolution_proton_not_merged = tfs->make<TH1D>("vertex_resolution_proton_not_merged","Vertex resolution for proton vertexes for NON merged protons",1000,0,100);
+   h_vertex_resolution_muon_not_merged = tfs->make<TH1D>("vertex_resolution_muon_not_merged","Vertex resolution for muon vertexes for NON merged protons",1000,0,100);
+   h_vertex_resolution_neutrino_merged = tfs->make<TH1D>("vertex_resolution_neutrino_merged","Vertex resolution for neutrino vertexes for merged protons",1000,0,100);
+   h_vertex_resolution_proton_merged = tfs->make<TH1D>("vertex_resolution_proton_merged","Vertex resolution for proton vertexes for merged protons",1000,0,100);
+   h_vertex_resolution_muon_merged = tfs->make<TH1D>("vertex_resolution_muon_merged","Vertex resolution for muon vertexes for merged protons",1000,0,100);
+   
+   h_vertex_resolution_vs_not_tracked_above20MeV = tfs->make<TH2D>("h_vertex_resolution_vs_not_tracked_above20MeV","Vertex resolution for neutrino vertexes vs fraction of not tracked above 20MeV w.r.t to total # of protons",200,0,20,100,0,1);
+   h_vertex_resolution_vs_not_tracked_below20MeV = tfs->make<TH2D>("h_vertex_resolution_vs_not_tracked_below","Vertex resolution for neutrino vertexes vs fraction of not tracked below 20MeV w.r.t to total # of protons",200,0,20,100,0,1);
+   h_vertex_resolution_vs_not_tracked = tfs->make<TH2D>("h_vertex_resolution_vs_not_tracked","Vertex resolution for neutrino vertexes vs fraction of not tracked w.r.t to total # of protons",200,0,20,100,0,1);
+   
+    art::TFileDirectory hits_dir = tfs->mkdir("hits_dir");
+   //hits analysis
+   h_tracked_not_clustered_distance_nuvtx = hits_dir.make<TH1D>("tracked_not_clustered_distance_nuvtx", "Distance between hit and nu vertex for not clustered hits for tracked particles", 1000,0,100 );
+   h_tracked_not_clustered_muon_start = hits_dir.make<TH1D>("tracked_not_clustered_muon_start", "Distance between hit and muon start position for not clustered hits for tracked muons", 1000,0,100 );
+   h_tracked_not_clustered_muon_end = hits_dir.make<TH1D>("tracked_not_clustered_muon_end", "Distance between hit and muon end position for not clustered hits for tracked muons", 1000,0,100 );
+   h_tracked_not_clustered_proton_start = hits_dir.make<TH2D>("tracked_not_clustered_proton_start", "Distance between hit and proton  start position for not clustered hits for tracked protons vs length", 1000,0,100, 1000, 0, 100 );
+   h_tracked_not_clustered_proton_end = hits_dir.make<TH2D>("tracked_not_clustered_proton_end", "Distance between hit and proton end position for not clustered hits for tracked protons vs length", 1000,0,100, 1000,0,100 );
+   h_hits_not_clustered_tracked_charge = hits_dir.make<TH1D>("hits_not_clustered_tracked_charge", "Charge of not clustered hits but tracked particles", 1000,0,1000 );
+   h_hits_not_clustered_tracked_charge_proton = hits_dir.make<TH1D>("hits_not_clustered_tracked_charge_proton", "Charge of not clustered hits but tracked particles - protons", 1000,0,1000 );
+   h_hits_not_clustered_tracked_charge_muon = hits_dir.make<TH1D>("hits_not_clustered_tracked_charge_muon", "Charge of not clustered hits but tracked particles - muons", 1000,0,1000 );
+   h_fraction_pdgs_not_tracked_not_clustered = hits_dir.make<TH1D>("fraction_pdgs_not_tracked_not_clustered", "Fraction of not-tracked not-clustered hits for muon (0) and protons (1) (2for protons >20MeV, 3 for <20MeV)", 4,-0.5,3.5);
+   h_not_tracked_not_clustered_muon_start = hits_dir.make<TH1D>("not_tracked_not_clustered_muon_start", "Distance between hit and muon start position for not clustered hits for NON tracked muons", 1000,0,100 );
+   h_not_tracked_not_clustered_muon_end = hits_dir.make<TH1D>("not_tracked_not_clustered_muon_end", "Distance between hit and muon end position for not clustered hits for NON tracked muons", 1000,0,100 );
+   h_not_tracked_not_clustered_proton_start = hits_dir.make<TH2D>("not_tracked_not_clustered_proton_start", "Distance between hit and proton  start position for not clustered hits for NON tracked protons vs length", 1000,0,100, 1000, 0, 100 );
+   h_not_tracked_not_clustered_proton_end = hits_dir.make<TH2D>("not_tracked_not_clustered_proton_end", "Distance between hit and proton end position for not clustered hits for NON tracked protons vs length", 1000,0,100, 1000,0,100 );
+   h_hits_not_clustered_not_tracked_charge_muon = hits_dir.make<TH1D>("hits_not_clustered_not_tracked_charge_muon", "Charge of not clustered hits and NON tracked particles - muons", 1000,0,1000 );
+   h_hits_not_clustered_not_tracked_charge_proton = hits_dir.make<TH1D>("hits_not_clustered_not_tracked_charge_proton", "Charge of not clustered hits and NON tracked particles - protons", 1000,0,1000 );
+   
+   h_muon_clustering_prob_good_protons = hits_dir.make<TH1D>("muon_clustering_prob_good_protons","Probability of not-clustering (0), clustering correctly (1) and clustering wrongly (2) for muon in events w/ all reco'ed protons",3,-0.5,2.5);
+   h_muon_clustering_mismatch_pdg_good_protons = hits_dir.make<TH1D>("muon_clustering_mismatch_pdg_good_protons","PDG of the particle the muon hits are wrongly assigned to",10000,0,10000);
+   h_muon_not_clustered_reco_hits_good_protons = hits_dir.make<TH2D>("muon_not_clustered_reco_hits_good_protons","Number of not clustered hits vs number of hits for muon in \"good proton\" events", 500,0,500,1000,0,10000);
+   h_muon_clustered_matched_reco_hits_good_protons = hits_dir.make<TH2D>("muon_clustered_matched_reco_hits_good_protons","Number of clustered and matched hits vs number of hits for muon in \"good proton\" events", 500,0,500,1000,0,10000);
+   h_muon_clustered_mismatched_reco_hits_good_protons = hits_dir.make<TH2D>("muon_clustered_mismatched_reco_hits_good_protons","Number of clustered and mismatched hits vs number of hits for muon in \"good proton\" events", 500,0,500,1000,0,10000);
+   h_muon_NC_lateral_hits_good_protons = hits_dir.make<TH2D>("muon_NC_lateral_hits_good_protons","Fraction of not clustered hits/total hits for muons in \"good proton\" events VS lateral distance between muon and proton",1000,0,1,800,0,200);
+   h_muon_NC_costheta_hits_good_protons = hits_dir.make<TH2D>("muon_NC_costheta_hits_good_protons","Fraction of not clustered hits/total hits for muons in \"good proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_muon_CMA_lateral_hits_good_protons = hits_dir.make<TH2D>("muon_CMA_lateral_hits_good_protons","Fraction of clusterend and matched hits/total hits for muons in \"good proton\" events VS lateral distance between muon and proton",1000,0,1,800,0,200);
+   h_muon_CMA_costheta_hits_good_protons = hits_dir.make<TH2D>("muon_CMA_costheta_hits_good_protons","Fraction of clustered and matched hits/total hits for muons in \"good proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_muon_CMI_lateral_hits_good_protons = hits_dir.make<TH2D>("muon_CMI_lateral_hits_good_protons","Fraction of clustered and mismatched hits/total hits for muons in \"good proton\" events VS lateral distance between muon and proton",1000,0,1,800,0,200);
+   h_muon_CMI_costheta_hits_good_protons = hits_dir.make<TH2D>("muon_CMI_costheta_hits_good_protons","Fraction of clustered and mismatched hits/total hits for muons in \"good proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_muon_not_clustered_reco_charge_good_protons = hits_dir.make<TH2D>("muon_not_clustered_reco_charge_good_protons", "Not clustered hit charge vs fraction of non clustered/total hits for muons in \"good proton\" events",1000,0,1000,500,0,1);
+   h_muon_NC_lateral_charge_good_protons = hits_dir.make<TH2D>("muon_NC_lateral_charge_good_protons","Not clustered hit charge vs lateral distance muon - proton for muons in \"good proton\" events", 1000,0,1000,800,0,200);
+   h_muon_NC_costheta_charge_good_protons = hits_dir.make<TH2D>("muon_NC_costheta_charge_good_protons","Not clustered hit charge vs costheta muon - proton for muons in \"good proton\" events", 1000,0,1000,100,-1,1);
+   h_muon_clustered_matched_reco_charge_good_protons = hits_dir.make<TH2D>("muon_clustered_matched_reco_charge_good_protons", "Clustered and matched hit charge vs fraction of non clustered/total hits for muons in \"good proton\" events",1000,0,1000,500,0,1);
+   h_muon_CMA_lateral_charge_good_protons = hits_dir.make<TH2D>("muon_CMA_lateral_charge_good_protons","Clustered and matched hit charge vs lateral distance muon - proton for muons in \"good proton\" events", 1000,0,1000,800,0,200);
+   h_muon_CMA_costheta_charge_good_protons = hits_dir.make<TH2D>("muon_CMA_costheta_charge_good_protons","Clustered and matched hit charge vs costheta muon - proton for muons in \"good proton\" events", 1000,0,1000,100,-1,1);
+   h_muon_clustered_mismatched_reco_charge_good_protons = hits_dir.make<TH2D>("muon_clustered_mismatched_reco_charge_good_protons", "Clustered and mismatched hit charge vs fraction of non clustered/total hits for muons in \"good proton\" events",1000,0,1000,500,0,1);
+   h_muon_CMI_lateral_charge_good_protons = hits_dir.make<TH2D>("muon_CMI_lateral_charge_good_protons","Clustered and mismatched hit charge vs lateral distance muon - proton for muons in \"good proton\" events", 1000,0,1000,800,0,200);
+   h_muon_CMI_costheta_charge_good_protons = hits_dir.make<TH2D>("muon_CMI_costheta_charge_good_protons","Clustered and mismatchedhit charge vs costheta muon - proton for muons in \"good proton\" events", 1000,0,1000,100,-1,1);
+
+   h_proton_clustering_prob_good_protons = hits_dir.make<TH1D>("proton_clustering_prob_good_protons","Probability of not-clustering (0), clustering correctly (1) and clustering wrongly (2) for proton in events w/ all reco'ed protons",3,-0.5,2.5);
+   h_proton_clustering_mismatch_pdg_good_protons = hits_dir.make<TH1D>("proton_clustering_mismatch_pdg_good_protons","PDG of the particle the proton hits are wrongly assigned to",10000,0,10000);
+   h_proton_not_clustered_reco_hits_good_protons = hits_dir.make<TH2D>("proton_not_clustered_reco_hits_good_protons","Number of not clustered hits vs number of hits for proton in \"good proton\" events", 500,0,500,1000,0,10000);
+   h_proton_NC_lateral_hits_good_protons = hits_dir.make<TH2D>("proton_NC_lateral_hits_good_protons","Fraction of not clustered hits/total hits for protons in \"good proton\" events VS lateral distance between muon and proton",1000,0,1,800,0,200);
+   h_proton_NC_costheta_hits_good_protons = hits_dir.make<TH2D>("proton_NC_costheta_hits_good_protons","Fraction of not clustered hits/total hits for protons in \"good proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_proton_clustered_matched_reco_hits_good_protons = hits_dir.make<TH2D>("proton_clustered_matched_reco_hits_good_protons","Number of clustered and matched hits vs number of hits for proton in \"good proton\" events", 500,0,500,1000,0,10000);
+   h_proton_CMA_lateral_hits_good_protons = hits_dir.make<TH2D>("proton_CMA_lateral_hits_good_protons","Fraction of clustered and matched hits/total hits for protons in \"good proton\" events VS lateral distance between muon and proton",1000,0,1,800,0,200);
+   h_proton_CMA_costheta_hits_good_protons = hits_dir.make<TH2D>("proton_CMA_costheta_hits_good_protons","Fraction of clustered and matched hits/total hits for protons in \"good proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_proton_clustered_mismatched_reco_hits_good_protons = hits_dir.make<TH2D>("proton_clustered_mismatched_reco_hits_good_protons","Number of clustered and mismatched hits vs number of hits for proton in \"good proton\" events", 500,0,500,1000,0,10000);
+   h_proton_CMI_lateral_hits_good_protons = hits_dir.make<TH2D>("proton_CMI_lateral_hits_good_protons","Fraction of clustered and mismatched hits/total hits for protons in \"good proton\" events VS lateral distance between muon and proton",1000,0,1,800,0,200);
+   h_proton_CMI_costheta_hits_good_protons = hits_dir.make<TH2D>("proton_CMI_costheta_hits_good_protons","Fraction of clustered and mismatched hits/total hits for protons in \"good proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_proton_not_clustered_reco_charge_good_protons = hits_dir.make<TH2D>("proton_not_clustered_reco_charge_good_protons", "Not clustered hit charge vs fraction of non clustered/total hits for protons in \"good proton\" events",1000,0,1000,500,0,1);
+   h_proton_NC_lateral_charge_good_protons = hits_dir.make<TH2D>("proton_NC_lateral_charge_good_protons","Not clustered hit charge vs lateral distance muon - proton for protons in \"good proton\" events", 1000,0,1000,800,0,200);
+   h_proton_NC_costheta_charge_good_protons = hits_dir.make<TH2D>("proton_NC_costheta_charge_good_protons","Not clustered hit charge vs costheta muon - proton for protons in \"good proton\" events", 1000,0,1000,100,-1,1);
+   h_proton_clustered_matched_reco_charge_good_protons = hits_dir.make<TH2D>("proton_clustered_matched_reco_charge_good_protons", "Clustered and matched hit charge vs fraction of non clustered/total hits for protons in \"good proton\" events",1000,0,1000,500,0,1);
+   h_proton_CMA_lateral_charge_good_protons = hits_dir.make<TH2D>("proton_CMA_lateral_charge_good_protons","Clustered and matched hit charge vs lateral distance muon - proton for protons in \"good proton\" events", 1000,0,1000,800,0,200);
+   h_proton_CMA_costheta_charge_good_protons = hits_dir.make<TH2D>("proton_CMA_costheta_charge_good_protons","Clustered and matched hit charge vs costheta muon - proton for protons in \"good proton\" events", 1000,0,1000,100,-1,1);
+   h_proton_clustered_mismatched_reco_charge_good_protons = hits_dir.make<TH2D>("proton_clustered_mismatched_reco_charge_good_protons", "Clustered and mismatched hit charge vs fraction of non clustered/total hits for protons in \"good proton\" events",1000,0,1000,500,0,1);
+   h_proton_CMI_lateral_charge_good_protons = hits_dir.make<TH2D>("proton_CMI_lateral_charge_good_protons","Clustered and mismatched hit charge vs lateral distance muon - proton for protons in \"good proton\" events", 1000,0,1000,800,0,200);
+   h_proton_CMI_costheta_charge_good_protons = hits_dir.make<TH2D>("proton_CMI_costheta_charge_good_protons","Clustered and mismatched hit charge vs costheta muon - proton for protons in \"good proton\" events", 1000,0,1000,100,-1,1);
+
+   h_muon_clustering_prob_bad_protons = hits_dir.make<TH1D>("muon_clustering_prob_bad_protons","Probability of not-clustering (0), clustering correctly (1) and clustering wrongly (2) for muon in events w/ all reco'ed protons",3,-0.5,2.5);
+   h_muon_clustering_mismatch_pdg_bad_protons = hits_dir.make<TH1D>("muon_clustering_mismatch_pdg_bad_protons","PDG of the particle the muon hits are wrongly assigned to",10000,0,10000);
+   h_muon_not_clustered_reco_hits_bad_protons = hits_dir.make<TH2D>("muon_not_clustered_reco_hits_bad_protons","Number of not clustered hits vs number of hits for muon in \"bad proton\" events", 500,0,500,1000,0,10000);
+   h_muon_NC_lateral_hits_bad_protons = hits_dir.make<TH2D>("muon_NC_lateral_hits_bad_protons","Fraction of not clustered hits/total hits for muons in \"bad proton\" events VS lateral distance between muon and proton",1000,0,1,800,0,200);
+   h_muon_NC_costheta_hits_bad_protons = hits_dir.make<TH2D>("muon_NC_costheta_hits_bad_protons","Fraction of not clustered hits/total hits for muons in \"bad proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_muon_clustered_matched_reco_hits_bad_protons = hits_dir.make<TH2D>("muon_clustered_matched_reco_hits_bad_protons","Number of clustered and matched hits vs number of hits for muon in \"bad proton\" events", 500,0,500,1000,0,10000);
+   h_muon_CMA_lateral_hits_bad_protons = hits_dir.make<TH2D>("muon_CMA_lateral_hits_bad_protons","Fraction of clustered and matched hits/total hits for muons in \"bad proton\" events VS lateral distance between muon and proton",1000,0,1,800,0,200);
+   h_muon_CMA_costheta_hits_bad_protons = hits_dir.make<TH2D>("muon_CMA_costheta_hits_bad_protons","Fraction of clustered and matched hits/total hits for muons in \"bad proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_muon_clustered_mismatched_reco_hits_bad_protons = hits_dir.make<TH2D>("muon_clustered_mismatched_reco_hits_bad_protons","Number of clustered and mismatched hits vs number of hits for muon in \"bad proton\" events", 500,0,500,1000,0,10000);
+   h_muon_CMI_lateral_hits_bad_protons = hits_dir.make<TH2D>("muon_CMI_lateral_hits_bad_protons","Fraction of clustered and mismatched hits/total hits for muons in \"bad proton\" events VS lateral distance between muon and proton",1000,0,1,800,0,200);
+   h_muon_CMI_costheta_hits_bad_protons = hits_dir.make<TH2D>("muon_CMI_costheta_hits_bad_protons","Fraction of clustered and mismatched hits/total hits for muons in \"bad proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_muon_not_clustered_reco_charge_bad_protons = hits_dir.make<TH2D>("muon_not_clustered_reco_charge_bad_protons", "Not clustered hit charge vs fraction of non clustered/total hits for muons in \"bad proton\" events",1000,0,1000,500,0,1);
+   h_muon_NC_lateral_charge_bad_protons = hits_dir.make<TH2D>("muon_NC_lateral_charge_bad_protons","Not clustered hit charge vs lateral distance muon - proton for muons in \"bad proton\" events", 1000,0,1000,800,0,200);
+   h_muon_NC_costheta_charge_bad_protons = hits_dir.make<TH2D>("muon_NC_costheta_charge_bad_protons","Not clustered hit charge vs costheta muon - proton for muons in \"bad proton\" events", 1000,0,1000,100,-1,1);
+   h_muon_clustered_matched_reco_charge_bad_protons = hits_dir.make<TH2D>("muon_clustered_matched_reco_charge_bad_protons", "Clustered and matched hit charge vs fraction of non clustered/total hits for muons in \"bad proton\" events",1000,0,1000,500,0,1);
+   h_muon_CMA_lateral_charge_bad_protons = hits_dir.make<TH2D>("muon_CMA_lateral_charge_bad_protons","Clustered and matched hit charge vs lateral distance muon - proton for muons in \"bad proton\" events", 1000,0,1000,800,0,200);
+   h_muon_CMA_costheta_charge_bad_protons = hits_dir.make<TH2D>("muon_CMA_costheta_charge_bad_protons","Clustered and matched hit charge vs costheta muon - proton for muons in \"bad proton\" events", 1000,0,1000,100,-1,1);
+   h_muon_clustered_mismatched_reco_charge_bad_protons = hits_dir.make<TH2D>("muon_clustered_mismatched_reco_charge_bad_protons", "Clustered and mismatched hit charge vs fraction of non clustered/total hits for muons in \"bad proton\" events",1000,0,1000,500,0,1);
+   h_muon_CMI_lateral_charge_bad_protons = hits_dir.make<TH2D>("muon_CMI_lateral_charge_bad_protons","Clustered and mismatched hit charge vs lateral distance muon - proton for muons in \"bad proton\" events", 1000,0,1000,800,0,200);
+   h_muon_CMI_costheta_charge_bad_protons = hits_dir.make<TH2D>("muon_CMI_costheta_charge_bad_protons","Clustered and mismatched hit charge vs costheta muon - proton for muons in \"bad proton\" events", 1000,0,1000,100,-1,1);
+
+   h_proton_clustering_prob_bad_protons = hits_dir.make<TH1D>("proton_clustering_prob_bad_protons","Probability of not-clustering (0), clustering correctly (1) and clustering wrongly (2) for proton in events w/ all reco'ed protons",3,-0.5,2.5);
+   h_proton_clustering_mismatch_pdg_bad_protons = hits_dir.make<TH1D>("proton_clustering_mismatch_pdg_bad_protons","PDG of the particle the proton hits are wrongly assigned to",10000,0,10000);
+   h_proton_not_clustered_reco_hits_bad_protons = hits_dir.make<TH2D>("proton_not_clustered_reco_hits_bad_protons","Number of not clustered hits vs number of hits for proton in \"bad proton\" events", 500,0,500,1000,0,10000);
+   h_proton_NC_lateral_hits_bad_protons = hits_dir.make<TH2D>("proton_NC_lateral_hits_bad_protons","Fraction of not clustered hits/total hits for protons in \"bad proton\" events VS lateral distance between muon and proton",100,0,1,800,0,200);
+   h_proton_NC_costheta_hits_bad_protons = hits_dir.make<TH2D>("proton_NC_costheta_hits_bad_protons","Fraction of not clustered hits/total hits for protons in \"bad proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_proton_clustered_matched_reco_hits_bad_protons = hits_dir.make<TH2D>("proton_clustered_matched_reco_hits_bad_protons","Number of clustered and matched hits vs number of hits for proton in \"bad proton\" events", 500,0,500,1000,0,10000);
+   h_proton_CMA_lateral_hits_bad_protons = hits_dir.make<TH2D>("proton_CMA_lateral_hits_bad_protons","Fraction of clustered and matched hits/total hits for protons in \"bad proton\" events VS lateral distance between muon and proton",100,0,1,800,0,200);
+   h_proton_CMA_costheta_hits_bad_protons = hits_dir.make<TH2D>("proton_CMA_costheta_hits_bad_protons","Fraction of clustered and matched hits/total hits for protons in \"bad proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_proton_clustered_mismatched_reco_hits_bad_protons = hits_dir.make<TH2D>("proton_clustered_mismatched_reco_hits_bad_protons","Number of clustered and mismatched hits vs number of hits for proton in \"bad proton\" events", 500,0,500,1000,0,10000);
+   h_proton_CMI_lateral_hits_bad_protons = hits_dir.make<TH2D>("proton_CMI_lateral_hits_bad_protons","Fraction of clustered and mismatched hits/total hits for protons in \"bad proton\" events VS lateral distance between muon and proton",100,0,1,800,0,200);
+   h_proton_CMI_costheta_hits_bad_protons = hits_dir.make<TH2D>("proton_CMI_costheta_hits_bad_protons","Fraction of clustered and mismatched hits/total hits for protons in \"bad proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_proton_not_clustered_reco_charge_bad_protons = hits_dir.make<TH2D>("proton_not_clustered_reco_charge_bad_protons", "Not clustered hit charge vs fraction of non clustered/total hits for protons in \"bad proton\" events",1000,0,1000,500,0,1);
+   h_proton_NC_lateral_charge_bad_protons = hits_dir.make<TH2D>("proton_NC_lateral_charge_bad_protons","Not clustered hit charge vs lateral distance muon - proton for protons in \"bad proton\" events", 1000,0,1000,800,0,200);
+   h_proton_NC_costheta_charge_bad_protons = hits_dir.make<TH2D>("proton_NC_costheta_charge_bad_protons","Not clustered hit charge vs costheta muon - proton for protons in \"bad proton\" events", 1000,0,1000,100,-1,1);
+   h_proton_clustered_matched_reco_charge_bad_protons = hits_dir.make<TH2D>("proton_clustered_matched_reco_charge_bad_protons", "Clustered and matched hit charge vs fraction of non clustered/total hits for protons in \"bad proton\" events",1000,0,1000,500,0,1);
+   h_proton_CMA_lateral_charge_bad_protons = hits_dir.make<TH2D>("proton_CMA_lateral_charge_bad_protons","Clustered and matched hit charge vs lateral distance muon - proton for protons in \"bad proton\" events", 1000,0,1000,800,0,200);
+   h_proton_CMA_costheta_charge_bad_protons = hits_dir.make<TH2D>("proton_CMA_costheta_charge_bad_protons","Clustered and matched hit charge vs costheta muon - proton for protons in \"bad proton\" events", 1000,0,1000,100,-1,1);
+   h_proton_clustered_mismatched_reco_charge_bad_protons = hits_dir.make<TH2D>("proton_clustered_mismatched_reco_charge_bad_protons", "Clustered and mismatched hit charge vs fraction of non clustered/total hits for protons in \"bad proton\" events",1000,0,1000,500,0,1);
+   h_proton_CMI_lateral_charge_bad_protons = hits_dir.make<TH2D>("proton_CMI_lateral_charge_bad_protons","Clustered and mismatched hit charge vs lateral distance muon - proton for protons in \"bad proton\" events", 1000,0,1000,800,0,200);
+   h_proton_CMI_costheta_charge_bad_protons = hits_dir.make<TH2D>("proton_CMI_costheta_charge_bad_protons","Clustered and mismatched hit charge vs costheta muon - proton for protons in \"bad proton\" events", 1000,0,1000,100,-1,1);
+
+
+   h_proton_clustering_prob_bad_protons_not_tracked = hits_dir.make<TH1D>("proton_clustering_prob_bad_protons_not_tracked","Probability of not-clustering (0), clustering correctly (1) and clustering wrongly (2) for proton in events w/ all reco'ed protons",3,-0.5,2.5);
+   h_proton_clustering_mismatch_pdg_bad_protons_not_tracked = hits_dir.make<TH1D>("proton_clustering_mismatch_pdg_bad_protons_not_tracked","PDG of the particle the proton hits are wrongly assigned to",10000,0,10000);
+   h_proton_not_clustered_reco_hits_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_not_clustered_reco_hits_bad_protons_not_tracked","Number of not clustered hits vs number of hits for proton in \"bad proton\" events", 500,0,500,1000,0,10000);
+   h_proton_NC_lateral_hits_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_NC_lateral_hits_bad_protons_not_tracked","Fraction of not clustered hits/total hits for protons in \"bad proton\" events VS lateral distance between muon and proton",100,0,1,800,0,200);
+   h_proton_NC_costheta_hits_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_NC_costheta_hits_bad_protons_not_tracked","Fraction of not clustered hits/total hits for protons in \"bad proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_proton_clustered_matched_reco_hits_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_clustered_matched_reco_hits_bad_protons_not_tracked","Number of clustered and matched hits vs number of hits for proton in \"bad proton\" events", 500,0,500,1000,0,10000);
+   h_proton_CMA_lateral_hits_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_CMA_lateral_hits_bad_protons_not_tracked","Fraction of clustered and matched hits/total hits for protons in \"bad proton\" events VS lateral distance between muon and proton",100,0,1,800,0,200);
+   h_proton_CMA_costheta_hits_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_CMA_costheta_hits_bad_protons_not_tracked","Fraction of clustered and matched hits/total hits for protons in \"bad proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_proton_clustered_mismatched_reco_hits_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_clustered_mismatched_reco_hits_bad_protons_not_tracked","Number of clustered and mismatched hits vs number of hits for proton in \"bad proton\" events", 500,0,500,1000,0,10000);
+   h_proton_CMI_lateral_hits_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_CMI_lateral_hits_bad_protons_not_tracked","Fraction of clustered and mismatched hits/total hits for protons in \"bad proton\" events VS lateral distance between muon and proton",100,0,1,800,0,200);
+   h_proton_CMI_costheta_hits_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_CMI_costheta_hits_bad_protons_not_tracked","Fraction of clustered and mismatched hits/total hits for protons in \"bad proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_proton_not_clustered_reco_charge_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_not_clustered_reco_charge_bad_protons_not_tracked", "Not clustered hit charge vs fraction of non clustered/total hits for protons in \"bad proton\" events",1000,0,1000,500,0,1);
+   h_proton_NC_lateral_charge_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_NC_lateral_charge_bad_protons_not_tracked","Not clustered hit charge vs lateral distance muon - proton for protons in \"bad proton\" events", 1000,0,1000,800,0,200);
+   h_proton_NC_costheta_charge_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_NC_costheta_charge_bad_protons_not_tracked","Not clustered hit charge vs costheta muon - proton for protons in \"bad proton\" events", 1000,0,1000,100,-1,1);
+   h_proton_clustered_matched_reco_charge_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_clustered_matched_reco_charge_bad_protons_not_tracked", "Clustered and matched hit charge vs fraction of non clustered/total hits for protons in \"bad proton\" events",1000,0,1000,500,0,1);
+   h_proton_CMA_lateral_charge_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_CMA_lateral_charge_bad_protons_not_tracked","Clustered and matched hit charge vs lateral distance muon - proton for protons in \"bad proton\" events", 1000,0,1000,800,0,200);
+   h_proton_CMA_costheta_charge_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_CMA_costheta_charge_bad_protons_not_tracked","Clustered and matched hit charge vs costheta muon - proton for protons in \"bad proton\" events", 1000,0,1000,100,-1,1);
+   h_proton_clustered_mismatched_reco_charge_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_clustered_mismatched_reco_charge_bad_protons_not_tracked", "Clustered and mismatched hit charge vs fraction of non clustered/total hits for protons in \"bad proton\" events",1000,0,1000,500,0,1);
+   h_proton_CMI_lateral_charge_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_CMI_lateral_charge_bad_protons_not_tracked","Clustered and mismatched hit charge vs lateral distance muon - proton for protons in \"bad proton\" events", 1000,0,1000,800,0,200);
+   h_proton_CMI_costheta_charge_bad_protons_not_tracked = hits_dir.make<TH2D>("proton_CMI_costheta_charge_bad_protons_not_tracked","Clustered and mismatched hit charge vs costheta muon - proton for protons in \"bad proton\" events", 1000,0,1000,100,-1,1);
+
+
+   h_muon_clustering_prob_low_protons = hits_dir.make<TH1D>("muon_clustering_prob_low_protons","Probability of not-clustering (0), clustering correctly (1) and clustering wrongly (2) for muon in events w/ all reco'ed protons",3,-0.5,2.5);
+   h_muon_clustering_mismatch_pdg_low_protons = hits_dir.make<TH1D>("muon_clustering_mismatch_pdg_low_protons","PDG of the particle the muon hits are wrongly assigned to",10000,0,10000);
+   h_muon_not_clustered_reco_hits_low_protons = hits_dir.make<TH2D>("muon_not_clustered_reco_hits_low_protons","Number of not clustered hits vs number of hits for muon in \"bad proton\" events", 500,0,500,1000,0,10000);
+   h_muon_NC_lateral_hits_low_protons = hits_dir.make<TH2D>("muon_NC_lateral_hits_low_protons","Fraction of not clustered hits/total hits for muons in \"bad proton\" events VS lateral distance between muon and proton",100,0,1,800,0,200);
+   h_muon_NC_costheta_hits_low_protons = hits_dir.make<TH2D>("muon_NC_costheta_hits_low_protons","Fraction of not clustered hits/total hits for muons in \"bad proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_muon_clustered_matched_reco_hits_low_protons = hits_dir.make<TH2D>("muon_clustered_matched_reco_hits_low_protons","Number of clustered and matched hits vs number of hits for muon in \"bad proton\" events", 500,0,500,1000,0,10000);
+   h_muon_CMA_lateral_hits_low_protons = hits_dir.make<TH2D>("muon_CMA_lateral_hits_low_protons","Fraction of clustered and matched hits/total hits for muons in \"bad proton\" events VS lateral distance between muon and proton",100,0,1,800,0,200);
+   h_muon_CMA_costheta_hits_low_protons = hits_dir.make<TH2D>("muon_CMA_costheta_hits_low_protons","Fraction of clustered and matched hits/total hits for muons in \"bad proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_muon_clustered_mismatched_reco_hits_low_protons = hits_dir.make<TH2D>("muon_clustered_mismatched_reco_hits_low_protons","Number of clustered and mismatched hits vs number of hits for muon in \"bad proton\" events", 500,0,500,1000,0,10000);
+   h_muon_CMI_lateral_hits_low_protons = hits_dir.make<TH2D>("muon_CMI_lateral_hits_low_protons","Fraction of clustered and mismatched hits/total hits for muons in \"bad proton\" events VS lateral distance between muon and proton",100,0,1,800,0,200);
+   h_muon_CMI_costheta_hits_low_protons = hits_dir.make<TH2D>("muon_CMI_costheta_hits_low_protons","Fraction of clustered and mismatched hits/total hits for muons in \"bad proton\" events VS costheta between muon and proton",500,0,1,100,-1,1);
+   h_muon_not_clustered_reco_charge_low_protons = hits_dir.make<TH2D>("muon_not_clustered_reco_charge_low_protons", "Not clustered hit charge vs fraction of non clustered/total hits for muons in \"bad proton\" events",1000,0,1000,500,0,1);
+   h_muon_NC_lateral_charge_low_protons = hits_dir.make<TH2D>("muon_NC_lateral_charge_low_protons","Not clustered hit charge vs lateral distance muon - proton for muons in \"bad proton\" events", 1000,0,1000,800,0,200);
+   h_muon_NC_costheta_charge_low_protons = hits_dir.make<TH2D>("muon_NC_costheta_charge_low_protons","Not clustered hit charge vs costheta muon - proton for muons in \"bad proton\" events", 1000,0,1000,100,-1,1);
+   h_muon_clustered_matched_reco_charge_low_protons = hits_dir.make<TH2D>("muon_clustered_matched_reco_charge_low_protons", "Clustered and matched hit charge vs fraction of non clustered/total hits for muons in \"bad proton\" events",1000,0,1000,500,0,1);
+   h_muon_CMA_lateral_charge_low_protons = hits_dir.make<TH2D>("muon_CMA_lateral_charge_low_protons","Clustered and matched hit charge vs lateral distance muon - proton for muons in \"bad proton\" events", 1000,0,1000,800,0,200);
+   h_muon_CMA_costheta_charge_low_protons = hits_dir.make<TH2D>("muon_CMA_costheta_charge_low_protons","Clustered and matched hit charge vs costheta muon - proton for muons in \"bad proton\" events", 1000,0,1000,100,-1,1);
+   h_muon_clustered_mismatched_reco_charge_low_protons = hits_dir.make<TH2D>("muon_clustered_mismatched_reco_charge_low_protons", "Clustered and mismatched hit charge vs fraction of non clustered/total hits for muons in \"bad proton\" events",1000,0,1000,500,0,1);
+   h_muon_CMI_lateral_charge_low_protons = hits_dir.make<TH2D>("muon_CMI_lateral_charge_low_protons","Clustered and mismatched hit charge vs lateral distance muon - proton for muons in \"bad proton\" events", 1000,0,1000,800,0,200);
+   h_muon_CMI_costheta_charge_low_protons = hits_dir.make<TH2D>("muon_CMI_costheta_charge_low_protons","Clustered and mismatched hit charge vs costheta muon - proton for muons in \"bad proton\" events", 1000,0,1000,100,-1,1);
+
+
 }
 
-void recohelper::RecoBenchmarker::FillAnalysisHistograms() {
+int recohelper::RecoBenchmarker::FillAnalysisHistograms( int& count_tracked, int& count_not_tracked, bool & is_lowmomentum_p ) {
   
-    if (fccnc!=0 ) return; //comment if you're running over a std sample with NC interactions and you're interested in them
+    if (fccnc!=0 ) return -1; //comment if you're running over a std sample with NC interactions and you're interested in them
     unsigned muon_pos = -1;
     //check that the muon is reco
     bool reco_muon = false;
     bool is_pion=false;
-    bool is_lowmomentum_p = false;
+    bool lowmomentum_p = false;
     for (unsigned i = 0; i < fpdg.size(); i++) {
 	    if ( fpdg[i] == 13 ) { //ismuon
 	    hmuon_length_all->Fill( flength[i] );
@@ -1049,25 +2294,43 @@ void recohelper::RecoBenchmarker::FillAnalysisHistograms() {
 	    	hmuon_spectrum->Fill( fkinE[i] );
 		reco_muon = true;
 		hmuon_pos_res->Fill( sqrt( pow( freco_startx[i]- fstart_x[i] ,2) + pow( freco_starty[i]- fstart_y[i] ,2) + pow( freco_startz[i]- fstart_z[i] ,2) ));
+		float res = min ( sqrt( pow(freco_vertex_x[i] - fstart_x[i],2) + pow(freco_vertex_y[i] - fstart_y[i],2) + pow(freco_vertex_z[i] - fstart_z[i],2)) ,
+					sqrt( pow(freco_vertex_x[i] - fend_x[i],2) + pow(freco_vertex_y[i] - fend_y[i],2) + pow(freco_vertex_z[i] - fend_z[i],2)) );
+		h_vertex_resolution_muon->Fill( res );
 		if ( sqrt( pow( freco_startx[i]- fstart_x[i] ,2) + pow( freco_starty[i]- fstart_y[i] ,2) + pow( freco_startz[i]- fstart_z[i] ,2) ) > 50 ) {
 			reco_muon = false; //skip these events, might have direction flipped
 	    	}
     		}
 	    } //record info on the muon
 	    if ( fpdg[i] == 211 || fpdg[i] == -211 || fpdg[i] == 111 ) is_pion=true; //record if there are any pions
-	    if (  fpdg[i] == 2212 && fp0[i] <= 0.2 ) is_lowmomentum_p = true;
+	    if (  fpdg[i] == 2212 && fp0[i] <= 0.2 ) lowmomentum_p = true;
+	    if (  fpdg[i] == 2212 && fp0[i] >= 0.2 ) hproton_theta_mu->Fill(fcostheta_muon[i]);
     }
     
-    long count_not_tracked = 0;
-    long count_tracked = 0;
+    if ( reco_muon == false ) return muon_pos; //select events with a reco muon
+    
+    n_muons++;
+
+    //check if the neutrino reco'ed vertex is there 
+    if ( !(abs(fnu_reco_x+1)<DBL_EPSILON && abs(fnu_reco_y+1)<DBL_EPSILON && abs(fnu_reco_z+1)<DBL_EPSILON) ) 
+	h_vertex_resolution_neutrino->Fill( sqrt( pow(fnu_reco_x - fneutrino_x,2) + pow(fnu_reco_y - fneutrino_y,2) + pow(fnu_reco_z - fneutrino_z,2) ) );	    
+
+    count_not_tracked = 0;
+    count_tracked = 0;
+    is_lowmomentum_p = false;
     for (unsigned j=0; j<fpdg.size(); j++) {
 	    if ( !reco_muon ) break; //select events with a reco muon
 	    if ( fpdg[j]!=2212 ) continue; //watch only protons
-	    
+	 
+	    n_all_protons++;
 	    hproton_p_all->Fill( fp0[j] );
 	    hproton_l_all->Fill( flength[j] );
 	    hproton_kinE_all->Fill( fkinE[j] );
 	    h_theta_mu_length_all->Fill( fcostheta_muon[j], flength[j]);
+	    float res = min ( sqrt( pow(freco_vertex_x[j] - fstart_x[j],2) + pow(freco_vertex_y[j] - fstart_y[j],2) + pow(freco_vertex_z[j] - fstart_z[j],2)) ,
+					sqrt( pow(freco_vertex_x[j] - fend_x[j],2) + pow(freco_vertex_y[j] - fend_y[j],2) + pow(freco_vertex_z[j] - fend_z[j],2)) );
+	    h_vertex_resolution_proton->Fill( res );
+
 	    if ( fis_tracked[j] ) { //efficiency plots for all protons (but don't divide yet)
 	    	hproton_p->Fill( fp0[j] );
 	    	hproton_l->Fill( flength[j] );
@@ -1078,6 +2341,7 @@ void recohelper::RecoBenchmarker::FillAnalysisHistograms() {
 
     //now study all the protons with momentum > 200MeV
     if (fp0[j] > 0.2) {
+	 tot_n_protons++;
   	 h_theta_mu->Fill( fcostheta_muon[j] );	
 	 if ( !fis_tracked[j] ) {
 		count_not_tracked++;
@@ -1091,8 +2355,21 @@ void recohelper::RecoBenchmarker::FillAnalysisHistograms() {
 		hmuon_proton_tracked->Fill ( sqrt( pow( freco_startx[j]- freco_startx[muon_pos] ,2) + pow( freco_starty[j]- freco_starty[muon_pos] ,2) + pow( freco_startz[j]- freco_startz[muon_pos] ,2) ) );
 		hproton_pos_res->Fill ( sqrt( pow( freco_startx[j]- fstart_x[j] ,2) + pow( freco_starty[j]- fstart_y[j] ,2) + pow( freco_startz[j]- fstart_z[j] ,2) ) );
 		}
-   	}
+   	} else {
+		low_protons++;
+	}
 }
+	
+	hproton_merged_not_merged->Fill(0., double(count_tracked) );
+	hproton_merged_not_merged->Fill(1., double(count_not_tracked) );
+        
+ 	//neutrino vertex resolution vs proton recon performance:
+    	if ( !(abs(fnu_reco_x+1)<DBL_EPSILON && abs(fnu_reco_y+1)<DBL_EPSILON && abs(fnu_reco_z+1)<DBL_EPSILON) ) {
+	int tot_protons = count_not_tracked + count_tracked ;
+	h_vertex_resolution_vs_not_tracked_above20MeV->Fill( sqrt( pow(fnu_reco_x - fneutrino_x,2) + pow(fnu_reco_y - fneutrino_y,2) + pow(fnu_reco_z - fneutrino_z,2) ), double(count_not_tracked)/tot_protons );
+	h_vertex_resolution_vs_not_tracked->Fill( sqrt( pow(fnu_reco_x - fneutrino_x,2) + pow(fnu_reco_y - fneutrino_y,2) + pow(fnu_reco_z - fneutrino_z,2) ), double(count_not_tracked + low_protons)/ (tot_protons+low_protons) );
+	h_vertex_resolution_vs_not_tracked_below20MeV->Fill( sqrt( pow(fnu_reco_x - fneutrino_x,2) + pow(fnu_reco_y - fneutrino_y,2) + pow(fnu_reco_z - fneutrino_z,2) ), double(low_protons)/ (tot_protons+low_protons) );
+	}
 
 	if ( fmuon_residual.size() != fmuon_dqdx.size()) cout << "ERROR on calorimetry vector sizes!!!" << endl;
 	if ( count_not_tracked == 0 && count_tracked > 0 ) { //all protons are tracked 
@@ -1110,11 +2387,20 @@ void recohelper::RecoBenchmarker::FillAnalysisHistograms() {
 		h_dqdx_not_merged_service->Reset();
 
 		hmuon_pos_res_goodprotons->Fill( sqrt( pow( freco_startx[muon_pos]- fstart_x[muon_pos] ,2) + pow( freco_starty[muon_pos]- fstart_y[muon_pos] ,2) + pow( freco_startz[muon_pos]- fstart_z[muon_pos] ,2) ) );
+    		if ( !(abs(fnu_reco_x+1)<DBL_EPSILON && abs(fnu_reco_y+1)<DBL_EPSILON && abs(fnu_reco_z+1)<DBL_EPSILON) ) 
+	        h_vertex_resolution_neutrino_not_merged->Fill( sqrt( pow(fnu_reco_x - fneutrino_x,2) + pow(fnu_reco_y - fneutrino_y,2) + pow(fnu_reco_z - fneutrino_z,2) ) );	    
+		
     		for (unsigned j=0; j < fpdg.size(); j++) {
 	    	if ( !reco_muon ) break; //select events with a reco muon
+	    	float res = min ( sqrt( pow(freco_vertex_x[j] - fstart_x[j],2) + pow(freco_vertex_y[j] - fstart_y[j],2) + pow(freco_vertex_z[j] - fstart_z[j],2)) ,
+					sqrt( pow(freco_vertex_x[j] - fend_x[j],2) + pow(freco_vertex_y[j] - fend_y[j],2) + pow(freco_vertex_z[j] - fend_z[j],2)) );
+		
+		if ( fpdg[j]==13 ) h_vertex_resolution_muon_not_merged->Fill( res );
 	    	if ( fpdg[j]!=2212 && fp0[j] <= 0.2 && !fis_tracked[j]) continue; //watch only reco protons with p>0.2Gev/c
    		hproton_pos_res_goodprotons->Fill(  sqrt( pow( freco_startx[j]- fstart_x[j] ,2) + pow( freco_starty[j]- fstart_y[j] ,2) + pow( freco_startz[j]- fstart_z[j] ,2) ) ); 
-   		if (is_lowmomentum_p) hproton_pos_res_lowprotons->Fill(  sqrt( pow( freco_startx[j]- fstart_x[j] ,2) + pow( freco_starty[j]- fstart_y[j] ,2) + pow( freco_startz[j]- fstart_z[j] ,2) ) ); 
+	    	h_vertex_resolution_proton_not_merged->Fill( res );
+
+   		if (lowmomentum_p) hproton_pos_res_lowprotons->Fill(  sqrt( pow( freco_startx[j]- fstart_x[j] ,2) + pow( freco_starty[j]- fstart_y[j] ,2) + pow( freco_startz[j]- fstart_z[j] ,2) ) ); 
 		}
 	} 
 
@@ -1133,15 +2419,23 @@ void recohelper::RecoBenchmarker::FillAnalysisHistograms() {
 		h_dqdx_merged_service->Reset();
 		    
 		hmuon_pos_res_badprotons->Fill( sqrt( pow( freco_startx[muon_pos]- fstart_x[muon_pos] ,2) + pow( freco_starty[muon_pos]- fstart_y[muon_pos] ,2) + pow( freco_startz[muon_pos]- fstart_z[muon_pos] ,2) ) );
+    		if ( !(abs(fnu_reco_x+1)<DBL_EPSILON && abs(fnu_reco_y+1)<DBL_EPSILON && abs(fnu_reco_z+1)<DBL_EPSILON) ) 
+	        h_vertex_resolution_neutrino_merged->Fill( sqrt( pow(fnu_reco_x - fneutrino_x,2) + pow(fnu_reco_y - fneutrino_y,2) + pow(fnu_reco_z - fneutrino_z,2) ) );	    
     		for (unsigned j=0; j<fpdg.size(); j++) {
 	    	if ( !reco_muon ) break; //select events with a reco muon
+	    	float res = min ( sqrt( pow(freco_vertex_x[j] - fstart_x[j],2) + pow(freco_vertex_y[j] - fstart_y[j],2) + pow(freco_vertex_z[j] - fstart_z[j],2)) ,
+					sqrt( pow(freco_vertex_x[j] - fend_x[j],2) + pow(freco_vertex_y[j] - fend_y[j],2) + pow(freco_vertex_z[j] - fend_z[j],2)) );
+		
+		if ( fpdg[j]==13 ) h_vertex_resolution_muon_merged->Fill( res );
 	    	if ( fpdg[j]!=2212 && fp0[j] <= 0.2 && !fis_tracked[j]) continue; //watch only reco protons with p>0.2Gev/c
    		hproton_pos_res_badprotons->Fill(  sqrt( pow( freco_startx[j]- fstart_x[j] ,2) + pow( freco_starty[j]- fstart_y[j] ,2) + pow( freco_startz[j]- fstart_z[j] ,2) ) ); 
-   		if (is_lowmomentum_p) hproton_pos_res_lowprotons->Fill(  sqrt( pow( freco_startx[j]- fstart_x[j] ,2) + pow( freco_starty[j]- fstart_y[j] ,2) + pow( freco_startz[j]- fstart_z[j] ,2) ) ); 
+	    	h_vertex_resolution_proton_merged->Fill( res );
+   		if (lowmomentum_p) hproton_pos_res_lowprotons->Fill(  sqrt( pow( freco_startx[j]- fstart_x[j] ,2) + pow( freco_starty[j]- fstart_y[j] ,2) + pow( freco_startz[j]- fstart_z[j] ,2) ) ); 
 		}
 	}
 
-	if ( reco_muon && count_tracked == 0 && count_not_tracked== 0 && !is_pion && is_lowmomentum_p ) { //no protons tracked but low energy ones
+	if ( reco_muon && count_tracked == 0 && count_not_tracked== 0 && !is_pion && lowmomentum_p ) { //no protons tracked but low energy ones
+		is_lowmomentum_p = true;
 		for (unsigned jj=1; jj<fmuon_dqdx.size()-1; jj++) {
 				h_dqdx_low_protons->Fill( fmuon_range -  fmuon_residual[jj], fmuon_dqdx[jj] );
 				h_dqdx_low_protons_service->Fill( fmuon_range -  fmuon_residual[jj], fmuon_dqdx[jj] );
@@ -1155,6 +2449,8 @@ void recohelper::RecoBenchmarker::FillAnalysisHistograms() {
 		hmuon_pos_res_lowprotons->Fill( sqrt( pow( freco_startx[muon_pos]- fstart_x[muon_pos] ,2) + pow( freco_starty[muon_pos]- fstart_y[muon_pos] ,2) + pow( freco_startz[muon_pos]- fstart_z[muon_pos] ,2) ) );
 	}
 
+
+	return muon_pos;
 
 }
 
@@ -1173,7 +2469,7 @@ void recohelper::RecoBenchmarker::FillCumulativeHistograms() {
 
 
 void recohelper::RecoBenchmarker::AllocateRecoVectors() {
-	fis_tracked.push_back(0);
+	fis_tracked.push_back(false);
 	fmatch_multiplicity.push_back(0);
 	flength_reco.push_back(-1);
 	freco_momentum_mcs.push_back(-1);
@@ -1189,10 +2485,50 @@ void recohelper::RecoBenchmarker::AllocateRecoVectors() {
 	freco_endx.push_back(-1);
 	freco_endy.push_back(-1);
 	freco_endz.push_back(-1);
+	freco_trackid.push_back(-99);
+	freco_track_hits.push_back(0);
+	freco_track_collection_hits.push_back(0);
+	freco_track_collection_charge.push_back(0);
+	freco_mcp_hits.push_back(-1);
+	freco_mcp_collection_hits.push_back(-1);
+	freco_mcp_collection_charge.push_back(-1);
+	freco_vertex_x.push_back(-1);
+	freco_vertex_y.push_back(-1);
+	freco_vertex_z.push_back(-1);
+	freco_vertex_chi2ndf.push_back(-1);
+	fnot_clustered.push_back(0);
+	fclustered.push_back(0);
+	fclustered_matched.push_back(0);
+	fclustered_mismatched.push_back(0);
+	fnot_clustered_charge.push_back( std::vector<float>() );
+	fclustered_charge.push_back( std::vector<float>() );
+	fclustered_matched_charge.push_back( std::vector<float>() );
+	fclustered_mismatched_charge.push_back( std::vector<float>() );
+	fhit_mismatch_pdg.push_back( std::vector<int>() );
+
 }
 
 void recohelper::RecoBenchmarker::endJob()
 {
+
+  //scale some histos	
+  hproton_multi_all->Scale(1./n_events);
+  hproton_multi_above20MeV->Scale(1./n_events);
+  hproton_multi_below20MeV->Scale(1./n_events);
+ 
+  hproton_merged_not_merged->Scale(1./tot_n_protons);
+
+  h_fraction_pdgs_not_tracked_not_clustered->SetBinContent( 2 , h_fraction_pdgs_not_tracked_not_clustered->GetBinContent(2)/float(n_all_protons) ); //all protons
+  h_fraction_pdgs_not_tracked_not_clustered->SetBinError( 2 , h_fraction_pdgs_not_tracked_not_clustered->GetBinContent(2)/sqrt(h_fraction_pdgs_not_tracked_not_clustered->GetEntries()) ); //all protons
+  h_fraction_pdgs_not_tracked_not_clustered->SetBinContent( 3 , h_fraction_pdgs_not_tracked_not_clustered->GetBinContent(3)/float(tot_n_protons) ); //>20MeV
+  h_fraction_pdgs_not_tracked_not_clustered->SetBinError( 3 , h_fraction_pdgs_not_tracked_not_clustered->GetBinContent(3)/sqrt(h_fraction_pdgs_not_tracked_not_clustered->GetEntries()) ); //>20MeV
+  h_fraction_pdgs_not_tracked_not_clustered->SetBinContent( 4 , h_fraction_pdgs_not_tracked_not_clustered->GetBinContent(4)/float(low_protons) ); //<20MeV
+  h_fraction_pdgs_not_tracked_not_clustered->SetBinError( 4 , h_fraction_pdgs_not_tracked_not_clustered->GetBinContent(4)/sqrt(h_fraction_pdgs_not_tracked_not_clustered->GetEntries()) ); //<20MeV
+   
+  /*h_muon_clustering_prob_good_protons->Scale( 1./h_muon_clustering_prob_good_protons->Integral() );
+  h_proton_clustering_prob_good_protons->Scale( 1./h_proton_clustering_prob_good_protons->Integral() );
+  h_muon_clustering_prob_bad_protons->Scale( 1./h_muon_clustering_prob_bad_protons->Integral() );
+  h_proton_clustering_prob_bad_protons->Scale( 1./h_proton_clustering_prob_bad_protons->Integral() );*/
 
   TFile& file = tfs->file();
   file.cd();
@@ -1200,7 +2536,34 @@ void recohelper::RecoBenchmarker::endJob()
   //--------------------------
   // Produce eff. plots
   //--------------------------
+   hmuon_spectrum_eff = (TH1D*) hmuon_spectrum->Clone("muon_spectrum_eff");
+   hmuon_spectrum_eff->Divide(hmuon_spectrum_all);
+   hmuon_spectrum_eff->Write();
+   
+   hmuon_length_eff = (TH1D*) hmuon_length->Clone("muon_length_eff");
+   hmuon_length_eff->Divide(hmuon_length_all);
+   hmuon_length_eff->Write();
+   
+   hproton_kinE_eff = (TH1D*) hproton_kinE->Clone("proton_kinE_eff");
+   hproton_kinE_eff->Divide(hproton_kinE_all);
+   hproton_kinE_eff->Write();
+   
+   hproton_p_eff = (TH1D*) hproton_p->Clone("proton_p_eff");
+   hproton_p_eff->Divide(hproton_p_all);
+   hproton_p_eff->Write();
+   
+   hproton_l_eff = (TH1D*) hproton_l->Clone("proton_l_eff");
+   hproton_l_eff->Divide(hproton_l_all);
+   hproton_l_eff->Write();
+   
+   hproton_l_eff = (TH1D*) hproton_l->Clone("proton_l_eff");
+   hproton_l_eff->Divide(hproton_l_all);
+   hproton_l_eff->Write();
 
+   hproton_theta_mu_eff = (TH1D*) h_theta_mu_tracked->Clone("proton_theta_mu_eff");
+   hproton_theta_mu_eff->Divide(hproton_theta_mu);
+   hproton_theta_mu_eff->Write();
+/*
   // mu efficiencies
   muMomentumEfficiency =
     (TH1D*)muMatchedMcpMomentum->Clone("muMomentumEfficiency");
@@ -1265,7 +2628,7 @@ void recohelper::RecoBenchmarker::endJob()
   allMatchedMcpProjectedAngle->Write();
   allMcpProjectedAngle->Write();
   allProjectedAngleEfficiency->Write();
-
+*/
   FillCumulativeHistograms();
 
 }
@@ -1310,12 +2673,41 @@ void recohelper::RecoBenchmarker::clear_vectors(){
    freco_endx.clear();
    freco_endy.clear();
    freco_endz.clear();
+   freco_trackid.clear();
     flength_reco.clear();
    fpurity.clear();
    fcompleteness.clear();
    fnhits.clear();
    fkinE.clear();
-   
+  
+   //hits analysis
+   freco_track_hits.clear();
+   freco_track_collection_hits.clear();
+   freco_track_collection_charge.clear();
+   freco_mcp_hits.clear();
+   freco_mcp_collection_hits.clear();
+   freco_mcp_collection_charge.clear();
+   fnot_clustered.clear();
+   fclustered.clear();
+   fclustered_matched.clear();
+   fclustered_mismatched.clear();
+
+   //delicate vectors
+   for (unsigned ii=0; ii<fnot_clustered_charge.size(); ii++) {
+   fnot_clustered_charge[ii].clear();
+   fclustered_charge[ii].clear();
+   fclustered_matched_charge[ii].clear();
+   fclustered_mismatched_charge[ii].clear();
+   fhit_mismatch_pdg[ii].clear();
+   }
+   fnot_clustered_charge.clear();
+   fclustered_charge.clear();
+   fclustered_matched_charge.clear();
+   fclustered_mismatched_charge.clear();
+   fhit_mismatch_pdg.clear();
+
+
+
   // setup variables
 
   isRecoTrackTruthMatched.clear(); 

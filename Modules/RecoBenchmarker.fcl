@@ -3,14 +3,17 @@ BEGIN_PROLOG
 RecoBenchmarker: {
       module_type:  "RecoBenchmarker"
       TrackLabel:   "pandoraNu"
+      PfpLabel:   "pandoraNu"
       TrackTruthLabel: "pandoraNuTruthMatch"
+      HitAssnTruthLabel: "crHitRemovalTruthMatch"
       MCTruthLabel: "generator"
       G4TruthLabel: "largeant"
       ShowerLabel:  "showerrecopandora"
       CalorimetryLabel:  "pandoraNucalo"
       ShowerTruthLabel: "showerrecopandoraTruthMatch"
       ClusterLabel: "pandoraNu"
-      HitLabel: "gaushit"
+      HitLabel: "pandoraCosmicHitRemoval"
+      MCHitLabel: "mchitfinder"
 }
 
 END_PROLOG
