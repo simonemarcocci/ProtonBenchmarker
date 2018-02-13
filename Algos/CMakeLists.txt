@@ -16,13 +16,12 @@ art_make( BASENAME_ONLY
             uboone_UBFlashFinder
             uboonecode_uboone_SelectionTool_OpT0FinderBase
             uboonecode_uboone_SelectionTool_OpT0FinderAlgorithms
-            larcore_Geometry
             larcore_Geometry_Geometry_service
             uboone_RawData
             SignalShapingServiceMicroBooNE_service
             larevt_CalibrationDBI_IOVData
             larevt_CalibrationDBI_Providers
-            larsim_MCCheater_BackTracker_service
+	    larsim_MCCheater_BackTrackerService_service
             larsim_Simulation
             lardataobj_RawData
             lardataobj_RecoBase
@@ -41,9 +40,12 @@ art_make( BASENAME_ONLY
             ${ART_FRAMEWORK_SERVICES_REGISTRY}
             ${ART_FRAMEWORK_SERVICES_OPTIONAL}
             ${ART_FRAMEWORK_SERVICES_OPTIONAL_TFILESERVICE_SERVICE}
-            art_Persistency_Common canvas_Persistency_Common
-            art_Persistency_Provenance canvas_Persistency_Provenance
-            art_Utilities canvas_Utilities
+            art_Persistency_Common
+	    #canvas_Persistency_Common
+            art_Persistency_Provenance 
+	    #canvas_Persistency_Provenance
+            art_Utilities 
+	    #canvas_Utilities
             ${ART_PERSISTENCY_COMMON}
             ${ART_PERSISTENCY_PROVENANCE}
             ${ART_UTILITIES}
@@ -58,7 +60,7 @@ art_make( BASENAME_ONLY
 
   MODULE_LIBRARIES
             uboonecode_uboone_RecoBenchmarker_Algos
-            larsim_MCCheater_BackTracker_service
+	    larsim_MCCheater_BackTrackerService_service
             larpandora_LArPandoraInterface
             #                   larpandora_LArPandoraContent
           

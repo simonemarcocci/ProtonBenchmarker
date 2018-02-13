@@ -38,7 +38,7 @@
 #include "larevt/SpaceChargeServices/SpaceChargeService.h"
 #include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
 #include "larcoreobj/SimpleTypesAndConstants/geo_types.h"
-#include "larcore/Geometry/WireGeo.h"
+#include "larcorealg/Geometry/WireGeo.h"
 #include "lardataobj/MCBase/MCHitCollection.h"
 #include "larpandora/LArPandoraInterface/LArPandora.h"
 
@@ -784,9 +784,9 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
   fccnc = thisNeutrino.CCNC();
   finteraction = thisNeutrino.InteractionType();
  
-  double xOffset = 0.7 - SCE->GetPosOffsets( thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z())[0];
-  double yOffset = SCE->GetPosOffsets( thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z())[1];
-  double zOffset = SCE->GetPosOffsets( thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z())[2];
+  double xOffset = 0.7 - SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()) ).x();
+  double yOffset = SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()) ).y();
+  double zOffset = SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()) ).z();
   if (!space_charge) {
 	  xOffset=0;
 	  yOffset=0;
@@ -899,9 +899,9 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	double yOffset = scecorr.Y();
 	double zOffset = scecorr.Z();*/
 	//anatree recipe:
-	xOffset = 0.7 - SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z())[0];
-	yOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z())[1];
-	zOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z())[2];
+        xOffset = 0.7 - SCE->GetPosOffsets( geo::Point_t(thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z()) ).x();
+        yOffset = SCE->GetPosOffsets( geo::Point_t(thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z()) ).y();
+        zOffset = SCE->GetPosOffsets( geo::Point_t(thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z()) ).z();
 	if (!space_charge) {
 		xOffset = 0;
 		yOffset = 0;
@@ -912,9 +912,9 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	fstart_z.push_back ( thisMcp->Position().Z() + zOffset );
 	
 	if (space_charge) {
-	xOffset = 0.7 - SCE->GetPosOffsets( thisMcp->EndPosition().X(),  thisMcp->EndPosition().Y(), thisMcp->EndPosition().Z())[0];
-	yOffset = SCE->GetPosOffsets( thisMcp->EndPosition().X(),  thisMcp->EndPosition().Y(), thisMcp->EndPosition().Z())[1];
-	zOffset = SCE->GetPosOffsets( thisMcp->EndPosition().X(),  thisMcp->EndPosition().Y(), thisMcp->EndPosition().Z())[2];
+        xOffset = 0.7 - SCE->GetPosOffsets( geo::Point_t(thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z()) ).x();
+        yOffset = SCE->GetPosOffsets( geo::Point_t(thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z()) ).y();
+        zOffset = SCE->GetPosOffsets( geo::Point_t(thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z()) ).z();
 	}
 	fend_x.push_back ( thisMcp->EndPosition().X() + xOffset );
 	fend_y.push_back ( thisMcp->EndPosition().Y() + yOffset );

@@ -16,10 +16,9 @@ art_make( BASENAME_ONLY
 	    larpandora_LArPandoraInterface
 	    LArPandoraContent
             uboonecode_uboone_RecoBenchmarker_Algos
-            larcore_Geometry
             larcore_Geometry_Geometry_service
             larsim_Simulation nutools_ParticleNavigation lardataobj_Simulation
-            larsim_MCCheater_BackTracker_service
+	    larsim_MCCheater_BackTrackerService_service
             lardata_Utilities
             larevt_Filters
             lardataobj_RawData
@@ -37,9 +36,12 @@ art_make( BASENAME_ONLY
             ${ART_FRAMEWORK_SERVICES_REGISTRY}
             ${ART_FRAMEWORK_SERVICES_OPTIONAL}
             ${ART_FRAMEWORK_SERVICES_OPTIONAL_TFILESERVICE_SERVICE}
-            art_Persistency_Common canvas_Persistency_Common
-            art_Persistency_Provenance canvas_Persistency_Provenance
-            art_Utilities canvas_Utilities
+            art_Persistency_Common
+	    #canvas_Persistency_Common
+            art_Persistency_Provenance
+	    #canvas_Persistency_Provenance
+            art_Utilities 
+	    #canvas_Utilities
             ${MF_MESSAGELOGGER}
             ${MF_UTILITIES}
             ${FHICLCPP}
