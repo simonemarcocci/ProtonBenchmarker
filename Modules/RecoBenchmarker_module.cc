@@ -83,12 +83,15 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
     // fcl input parameters
     std::string fTrackLabel;
     std::string fPfpLabel;
+    std::string fPfpAssnLabel;
     std::string fCalorimetryLabel;
     std::string fTrackTruthLabel;
     std::string fHitAssnTruthLabel;
     std::string fShowerLabel;
     std::string fShowerTruthLabel;
     std::string fClusterLabel;
+    std::string fVertexFitterLabel;
+    bool 	fIsVertexFitter;
     std::string fHitLabel;
     std::string fMCTruthLabel;
     std::string fG4TruthLabel;
@@ -150,7 +153,11 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
    float fnu_reco_x;
    float fnu_reco_y;
    float fnu_reco_z;
-   float fnu_reco_chi2ndf;
+   float fnu_reco_fitter_x;
+   float fnu_reco_fitter_y;
+   float fnu_reco_fitter_z;
+   float fnu_reco_fitter_chi2ndf;
+   float fnu_reco_fitter_chi2;
    std::vector<bool> fis_tracked;
    std::vector<bool> fmatch_multiplicity;
    //std::vector<bool> fis_mismatched; //it says if the MC truth assignment in different planes is different (possible hint for wrong or problematic backtracking)
@@ -174,7 +181,11 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
    std::vector<float> freco_vertex_x;
    std::vector<float> freco_vertex_y;
    std::vector<float> freco_vertex_z;
-   std::vector<float> freco_vertex_chi2ndf;
+   std::vector<float> freco_vertexfitter_x;
+   std::vector<float> freco_vertexfitter_y;
+   std::vector<float> freco_vertexfitter_z;
+   std::vector<float> freco_vertexfitter_chi2ndf;
+   std::vector<float> freco_vertexfitter_chi2;
    
    //info coming from the tracking algorithm - when there is NO mc truth
    std::vector<bool> ffake_is_tracked;
@@ -333,6 +344,25 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
    TH1D* hproton_l;
    TH1D* hproton_l_all;
    TH1D* hproton_l_eff;
+   TH1D* hproton_kinE_tracked_angle1;
+   TH1D* hproton_kinE_all_angle1;
+   TH1D* hproton_kinE_tracked_angle2;
+   TH1D* hproton_kinE_all_angle2;
+   TH1D* hproton_kinE_tracked_angle3;
+   TH1D* hproton_kinE_all_angle3;
+   TH1D* hproton_l_tracked_angle1;
+   TH1D* hproton_l_all_angle1;
+   TH1D* hproton_l_tracked_angle2;
+   TH1D* hproton_l_all_angle2;
+   TH1D* hproton_l_tracked_angle3;
+   TH1D* hproton_l_all_angle3;
+   TH1D* hproton_nhits_tracked_angle1;
+   TH1D* hproton_nhits_all_angle1;
+   TH1D* hproton_nhits_tracked_angle2;
+   TH1D* hproton_nhits_all_angle2;
+   TH1D* hproton_nhits_tracked_angle3;
+   TH1D* hproton_nhits_all_angle3;
+   
    TH1D* h_pmu_end_not_tracked;
    TH1D* h_pmu_end_tracked;
    TH1D* h_theta_mu_tracked;
@@ -355,6 +385,7 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
    TH2D* h_dqdx_merged_service;
    TH2D* h_dqdx_not_merged_service;
    TH2D* h_dqdx_low_protons_service;
+   //vertexes
    TH1D* h_vertex_resolution_neutrino;
    TH1D* h_vertex_resolution_proton;
    TH1D* h_vertex_resolution_muon;
@@ -368,7 +399,29 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
    TH2D* h_vertex_resolution_vs_not_tracked_below20MeV;
    TH2D* h_vertex_resolution_vs_not_tracked;
    
-   //hits analysis
+   //vertex fitter
+   TH1D* h_vertexfitter_resolution_neutrino;
+   TH1D* h_vertexfitter_chi2ndf_neutrino;
+   TH1D* h_vertexfitter_resolution_proton;
+   TH1D* h_vertexfitter_chi2ndf_proton;
+   TH1D* h_vertexfitter_resolution_muon;
+   TH1D* h_vertexfitter_chi2ndf_muon;
+   TH1D* h_vertexfitter_resolution_neutrino_not_merged;
+   TH1D* h_vertexfitter_chi2ndf_neutrino_not_merged;
+   TH1D* h_vertexfitter_chi2ndf_proton_not_merged;
+   TH1D* h_vertexfitter_resolution_muon_not_merged;
+   TH1D* h_vertexfitter_chi2ndf_muon_not_merged;
+   TH1D* h_vertexfitter_resolution_neutrino_merged;
+   TH1D* h_vertexfitter_chi2ndf_neutrino_merged;
+   TH1D* h_vertexfitter_chi2ndf_proton_merged;
+   TH1D* h_vertexfitter_resolution_muon_merged;
+   TH1D* h_vertexfitter_chi2ndf_muon_merged;
+   TH1D* h_vertexfitter_resolution_proton_not_merged;
+   TH1D* h_vertexfitter_resolution_proton_merged;
+   TH2D* h_vertexfitter_resolution_vs_not_tracked_above20MeV;
+   TH2D* h_vertexfitter_resolution_vs_not_tracked_below20MeV;
+   TH2D* h_vertexfitter_resolution_vs_not_tracked;
+   
   
    //hits studies
    TH1D* h_tracked_not_clustered_distance_nuvtx;
@@ -530,10 +583,13 @@ recohelper::RecoBenchmarker::RecoBenchmarker(fhicl::ParameterSet const & p)
 
   fTrackLabel = p.get<std::string> ("TrackLabel");
   fPfpLabel = p.get<std::string> ("PfpLabel");
+  fPfpAssnLabel = p.get<std::string> ("PfpAssnLabel");
   fCalorimetryLabel = p.get<std::string> ("CalorimetryLabel");
   fTrackTruthLabel = p.get<std::string> ("TrackTruthLabel");
   fHitAssnTruthLabel = p.get<std::string> ("HitAssnTruthLabel");
   fShowerLabel = p.get<std::string> ("ShowerLabel");
+  fVertexFitterLabel = p.get<std::string> ("VertexFitterLabel");
+  fIsVertexFitter = p.get<bool> ("IsVertexFitter");
   fMCTruthLabel = p.get<std::string> ("MCTruthLabel");
   fG4TruthLabel = p.get<std::string> ("G4TruthLabel");
   fShowerTruthLabel = p.get<std::string> ("ShowerTruthLabel");
@@ -605,7 +661,11 @@ void recohelper::RecoBenchmarker::beginJob()
   recoTree->Branch("nu_reco_x",&fnu_reco_x);
   recoTree->Branch("nu_reco_y",&fnu_reco_y);
   recoTree->Branch("nu_reco_z",&fnu_reco_z);
-  recoTree->Branch("nu_reco_chi2ndf",&fnu_reco_chi2ndf);
+  recoTree->Branch("nu_reco_fitter_x",&fnu_reco_fitter_x);
+  recoTree->Branch("nu_reco_fitter_y",&fnu_reco_fitter_y);
+  recoTree->Branch("nu_reco_fitter_z",&fnu_reco_fitter_z);
+  recoTree->Branch("nu_reco_fitter_chi2ndf",&fnu_reco_fitter_chi2ndf);
+  recoTree->Branch("nu_reco_fitter_chi2",&fnu_reco_fitter_chi2);
   recoTree->Branch("is_tracked",&fis_tracked);
   recoTree->Branch("match_multiplicity",&fmatch_multiplicity);
   recoTree->Branch("length_reco",&flength_reco);
@@ -626,7 +686,11 @@ void recohelper::RecoBenchmarker::beginJob()
   recoTree->Branch("reco_vertex_x",&freco_vertex_x);
   recoTree->Branch("reco_vertex_y",&freco_vertex_y);
   recoTree->Branch("reco_vertex_z",&freco_vertex_z);
-  recoTree->Branch("reco_vertex_chi2ndf",&freco_vertex_chi2ndf);
+  recoTree->Branch("reco_vertexfitter_x",&freco_vertexfitter_x);
+  recoTree->Branch("reco_vertexfitter_y",&freco_vertexfitter_y);
+  recoTree->Branch("reco_vertexfitter_z",&freco_vertexfitter_z);
+  recoTree->Branch("reco_vertexfitter_chi2ndf",&freco_vertexfitter_chi2ndf);
+  recoTree->Branch("reco_vertexfitter_chi2",&freco_vertexfitter_chi2);
 
   //hits analysis
   recoTree->Branch("reco_track_hits",&freco_track_hits);
@@ -1164,7 +1228,7 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
   //----------------------------
   
   art::FindManyP<recob::Vertex> vertexFromPfp(pfpHandle, e, fPfpLabel);
-  art::FindManyP<recob::Track> trackFromPfp(pfpHandle, e, fPfpLabel);
+  art::FindManyP<recob::Track> trackFromPfp(pfpHandle, e, fPfpAssnLabel);
   
   //look for neutrino pfp
   bool neutrino_set = false;
@@ -1183,7 +1247,6 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	  fnu_reco_x = xyzz[0];
 	  fnu_reco_y = xyzz[1];
 	  fnu_reco_z = xyzz[2];
-//	  fnu_reco_chi2ndf = vertex_pfp[0]->chi2PerNdof();
 	  }
 	  
 	  //investigate matching particles and tracks
@@ -1197,8 +1260,53 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	  freco_vertex_x[ mc_pos ] = xyzz[0];
 	  freco_vertex_y[ mc_pos ] = xyzz[1];
 	  freco_vertex_z[ mc_pos ] = xyzz[2];
-//	  freco_vertex_chi2ndf[ mc_pos ] = vertex_pfp[0]->chi2PerNdof(); 
   }
+
+  
+  //----------------------------
+  // Vertex fitter (Giuseppe)
+  //----------------------------
+ 
+  if (fIsVertexFitter) {
+  art::FindManyP<recob::Vertex> vertexfitterFromPfp(pfpHandle, e, fVertexFitterLabel);
+  
+  //look for neutrino pfp
+  neutrino_set = false;
+  for ( auto const& pfp : pfpList ) {
+	  std::vector< art::Ptr <recob::Vertex> > vertexfitter_pfp = vertexfitterFromPfp.at( &pfp - &pfpList[0] );
+	  
+	  if ( vertexfitter_pfp.size()==0 ) continue; //no vertex
+	  if ( vertexfitter_pfp.size()>1 ) mf::LogError(__FUNCTION__) << "Vertex Fitter: ERROR! There should be only 1 vertex per PFP!" <<std::endl;
+	  double xyzz[3];
+	  vertexfitter_pfp[0]->XYZ(xyzz);
+	  
+	  if ( lar_pandora::LArPandoraHelper::IsNeutrino(pfp) ) {
+	  	  if (neutrino_set) mf::LogError(__FUNCTION__) << "Vertex Fitter: There should be only 1 neutrino per PFP!!!!" << std::endl;
+		  neutrino_set = true;
+	  //save info on neutrino reco'ed vertex
+	  fnu_reco_fitter_x = xyzz[0];
+	  fnu_reco_fitter_y = xyzz[1];
+	  fnu_reco_fitter_z = xyzz[2];
+	  fnu_reco_fitter_chi2ndf = vertexfitter_pfp[0]->chi2PerNdof();
+	  fnu_reco_fitter_chi2 = vertexfitter_pfp[0]->chi2();
+	  }
+	  
+	  //investigate matching particles and tracks
+	  std::vector< art::Ptr <recob::Track> > track_pfp = trackFromPfp.at( &pfp - &pfpList[0] );
+	  if (track_pfp.size()==0) continue; //no track! (shower?)
+	  int trackid = track_pfp[0]->ID();
+	  auto iter = std::find( freco_trackid.begin(), freco_trackid.end(), trackid );
+	  if ( iter == freco_trackid.end() ) continue; //not found
+	  unsigned mc_pos = iter - freco_trackid.begin();
+          
+	  freco_vertexfitter_x[ mc_pos ] = xyzz[0];
+	  freco_vertexfitter_y[ mc_pos ] = xyzz[1];
+	  freco_vertexfitter_z[ mc_pos ] = xyzz[2];
+	  freco_vertexfitter_chi2ndf[ mc_pos ] = vertexfitter_pfp[0]->chi2PerNdof(); 
+	  freco_vertexfitter_chi2[ mc_pos ] = vertexfitter_pfp[0]->chi2(); 
+  }
+  } //is vertex fitter
+
 
   //std::cout << "NEUTRINO " <<  fnu_reco_x << " " << fnu_reco_y << " " << fnu_reco_z << std::endl;
 
@@ -1213,9 +1321,9 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	  std::cout<< "Run: " << fRun << " SubRun: " << fSubRun << " Event: " << fEvent << std::endl;
   }
 
-  art::FindManyP<recob::Cluster> clustersFromHits(hitHandle, e, fTrackLabel);
-  art::FindManyP<recob::PFParticle> pfpFromCluster(clusterHandle, e, fTrackLabel);
-  art::FindManyP<recob::PFParticle> pfpFromTrack(trackHandle, e, fTrackLabel);
+  art::FindManyP<recob::Cluster> clustersFromHits(hitHandle, e, fClusterLabel);
+  art::FindManyP<recob::PFParticle> pfpFromCluster(clusterHandle, e, fClusterLabel);
+  art::FindManyP<recob::PFParticle> pfpFromTrack(trackHandle, e, fPfpAssnLabel);
   art::FindManyP<recob::SpacePoint> spacepointFromHits( hitHandle, e, fTrackLabel );
   
   if (muon_pos != -1) {
@@ -1384,13 +1492,15 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 			size_t pfp_id = -1;
 			for ( auto const& cluster : clusterList) {
 			if ( cluster->ID() != cluster_ID ) continue; //select the cluster I am interested in
+				//std::cout << "SONO QUA" << std::endl;
 			std::vector< art::Ptr <recob::PFParticle> > pfp_cluster = pfpFromCluster.at( &cluster - &clusterList[0] );
-			if (pfp_cluster.size()!=1) std::cout << "MORE THAN 1 PFP!" << std::endl;
-			pfp_id = pfp_cluster[0]->Self();
+			if (pfp_cluster.size()!=1) std::cout << "MORE THAN 1 PFP! size=" << pfp_cluster.size() << std::endl;
+			if ( pfp_cluster.size()!=0 ) pfp_id = pfp_cluster[0]->Self();
 			}
 			
 			//associate the pfp to the tracks
 			for ( auto const& track : trackList) {
+				//std::cout << "SONO QUA 1" << std::endl;
 			std::vector< art::Ptr <recob::PFParticle> > pfp_track = pfpFromTrack.at( &track - &trackList[0] );
 			std::vector< art::Ptr <simb::MCParticle> > mcp_track = mcpsFromTracks.at( &track - &trackList[0] );
 			unsigned mm = 0;
@@ -1400,6 +1510,7 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 					purityy = mcpsFromTracks.data( &track - &trackList[0] ).at( nn )->cleanliness;
 					mm = nn;
 				}
+				//std::cout << "SONO QUA 2" << std::endl;
 			}
 			if (pfp_track.size()!=1) std::cout << "MORE THAN 1 PFP per track!" << std::endl;
 			if ( pfp_track[0]->Self() != pfp_id ) continue;
@@ -2090,6 +2201,27 @@ void recohelper::RecoBenchmarker::AllocateAnalysisHistograms() {
    hproton_p_all = tfs->make<TH1D>("proton_p_all","Proton reco efficiency; Momentum (GeV/c)",1000,0,10); //reco efficiency protons vs p
    hproton_l = tfs->make<TH1D>("proton_l","Proton reco efficiency; True length (cm)",1000,0,200); //reco efficiency protons vs p
    hproton_l_all = tfs->make<TH1D>("proton_l_all","Proton reco efficiency; True length (cm)",1000,0,200); //reco efficiency protons vs p
+   
+   hproton_kinE_tracked_angle1 = tfs->make<TH1D>("proton_kinE_tracked_angle1","Proton reco efficiency when #mu-p angle is <30degree; Kinetic Energy (GeV)",1000,0,2); //reco efficiency protons vs kin E
+   hproton_kinE_all_angle1 = tfs->make<TH1D>("proton_kinE_all_angle1","Proton reco efficiency when #mu-p angle is <30degree; Kinetic Energy (GeV)",1000,0,2); //reco efficiency protons vs kin E
+   hproton_kinE_tracked_angle2 = tfs->make<TH1D>("proton_kinE_tracked_angle2","Proton reco efficiency when #mu-p angle is <60 && > 30degree; Kinetic Energy (GeV)",1000,0,2); //reco efficiency protons vs kin E
+   hproton_kinE_all_angle2 = tfs->make<TH1D>("proton_kinE_all_angle2","Proton reco efficiency when #mu-p angle is <60 && > 30degree; Kinetic Energy (GeV)",1000,0,2); //reco efficiency protons vs kin E
+   hproton_kinE_tracked_angle3 = tfs->make<TH1D>("proton_kinE_tracked_angle3","Proton reco efficiency when #mu-p angle is >60degree; Kinetic Energy (GeV)",1000,0,2); //reco efficiency protons vs kin E
+   hproton_kinE_all_angle3 = tfs->make<TH1D>("proton_kinE_all_angle3","Proton reco efficiency when #mu-p angle is >60degree; Kinetic Energy (GeV)",1000,0,2); //reco efficiency protons vs kin E
+   hproton_l_tracked_angle1 = tfs->make<TH1D>("proton_l_tracked_angle1","Proton reco efficiency when #mu-p angle is <30degree; Kinetic Energy (GeV)",1000,0,200); //reco efficiency protons vs kin E
+   hproton_l_all_angle1 = tfs->make<TH1D>("proton_l_all_angle1","Proton reco efficiency when #mu-p angle is <30degree; True Length (cm)",1000,0,200); //reco efficiency protons vs kin E
+   hproton_l_tracked_angle2 = tfs->make<TH1D>("proton_l_tracked_angle2","Proton reco efficiency when #mu-p angle is <60 && > 30degree; True Length (cm)",1000,0,200); //reco efficiency protons vs kin E
+   hproton_l_all_angle2 = tfs->make<TH1D>("proton_l_all_angle2","Proton reco efficiency when #mu-p angle is <60 && > 30degree; True Length (cm)",1000,0,200); //reco efficiency protons vs kin E
+   hproton_l_tracked_angle3 = tfs->make<TH1D>("proton_l_tracked_angle3","Proton reco efficiency when #mu-p angle is >60degree; True Length (cm)",1000,0,200); //reco efficiency protons vs kin E
+   hproton_l_all_angle3 = tfs->make<TH1D>("proton_l_all_angle3","Proton reco efficiency when #mu-p angle is >60degree; True Length (cm)",1000,0,200); //reco efficiency protons vs kin E
+   hproton_nhits_tracked_angle1 = tfs->make<TH1D>("proton_nhits_tracked_angle1","Proton reco efficiency when #mu-p angle is <30degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
+   hproton_nhits_all_angle1 = tfs->make<TH1D>("proton_nhits_all_angle1","Proton reco efficiency when #mu-p angle is <30degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
+   hproton_nhits_tracked_angle2 = tfs->make<TH1D>("proton_nhits_tracked_angle2","Proton reco efficiency when #mu-p angle is <60 && > 30degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
+   hproton_nhits_all_angle2 = tfs->make<TH1D>("proton_nhits_all_angle2","Proton reco efficiency when #mu-p angle is <60 && > 30degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
+   hproton_nhits_tracked_angle3 = tfs->make<TH1D>("proton_nhits_tracked_angle3","Proton reco efficiency when #mu-p angle is >60degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
+   hproton_nhits_all_angle3 = tfs->make<TH1D>("proton_nhits_all_angle3","Proton reco efficiency when #mu-p angle is >60degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
+   
+   
    h_pmu_end_not_tracked = tfs->make<TH1D>("pmu_end_not_tracked","Not Tracked protons;Distance (cm);",1000,0,100); //lateral distance between proton end and muon
    h_pmu_end_tracked = tfs->make<TH1D>("pmu_end_tracked","Tracked protons;Distance (cm);",1000,0,100); //lateral distance between proton end and muon
    h_theta_mu_tracked = tfs->make<TH1D>("theta_mu_tracked","Cos #theta between muon and tracked protons;cos #theta",1000,-1,1); //costheta between muon and tracked protons
@@ -2116,16 +2248,37 @@ void recohelper::RecoBenchmarker::AllocateAnalysisHistograms() {
    h_vertex_resolution_neutrino = tfs->make<TH1D>("vertex_resolution_neutrino","Vertex resolution for neutrino vertexes",1000,0,100);
    h_vertex_resolution_proton = tfs->make<TH1D>("vertex_resolution_proton","Vertex resolution for proton vertexes",1000,0,100);
    h_vertex_resolution_muon = tfs->make<TH1D>("vertex_resolution_muon","Vertex resolution for muon vertexes",1000,0,100);
+   h_vertexfitter_resolution_neutrino = tfs->make<TH1D>("vertexfitter_resolution_neutrino","Vertex (fitter) resolution for neutrino vertexes",1000,0,100);
+   h_vertexfitter_chi2ndf_neutrino = tfs->make<TH1D>("vertexfitter_chi2ndf_neutrino","Vertex (fitter) chi2ndf for neutrino vertexes",1000,0,100);
+   h_vertexfitter_resolution_proton = tfs->make<TH1D>("vertexfitter_resolution_proton","Vertex (fitter) resolution for proton vertexes",1000,0,100);
+   h_vertexfitter_chi2ndf_proton = tfs->make<TH1D>("vertexfitter_chi2ndf_proton","Vertex (fitter) chi2ndf for proton vertexes",1000,0,100);
+   h_vertexfitter_resolution_muon = tfs->make<TH1D>("vertexfitter_resolution_muon","Vertex (fitter) resolution for muon vertexes",1000,0,100);
+   h_vertexfitter_chi2ndf_muon = tfs->make<TH1D>("vertexfitter_chi2ndf_muon","Vertex (fitter) chi2ndf for muon vertexes",1000,0,100);
    h_vertex_resolution_neutrino_not_merged = tfs->make<TH1D>("vertex_resolution_neutrino_not_merged","Vertex resolution for neutrino vertexes for NON merged protons",1000,0,100);
+   h_vertexfitter_resolution_neutrino_not_merged = tfs->make<TH1D>("vertexfitter_resolution_neutrino_not_merged","Vertex (fitter) resolution for neutrino vertexes for NON merged protons",1000,0,100);
+   h_vertexfitter_chi2ndf_neutrino_not_merged = tfs->make<TH1D>("vertexfitter_chi2_neutrino_not_merged","Vertex (fitter) chi2ndf for neutrino vertexes for NON merged protons",1000,0,100);
    h_vertex_resolution_proton_not_merged = tfs->make<TH1D>("vertex_resolution_proton_not_merged","Vertex resolution for proton vertexes for NON merged protons",1000,0,100);
+   h_vertexfitter_resolution_proton_not_merged = tfs->make<TH1D>("vertexfitter_resolution_proton_not_merged","Vertex (fitter) resolution for proton vertexes for NON merged protons",1000,0,100);
+   h_vertexfitter_chi2ndf_proton_not_merged = tfs->make<TH1D>("vertexfitter_chi2ndf_proton_not_merged","Vertex (fitter) chi2ndf for proton vertexes for NON merged protons",1000,0,100);
    h_vertex_resolution_muon_not_merged = tfs->make<TH1D>("vertex_resolution_muon_not_merged","Vertex resolution for muon vertexes for NON merged protons",1000,0,100);
+   h_vertexfitter_resolution_muon_not_merged = tfs->make<TH1D>("vertexfitter_resolution_muon_not_merged","Vertex (fitter) resolution for muon vertexes for NON merged protons",1000,0,100);
+   h_vertexfitter_chi2ndf_muon_not_merged = tfs->make<TH1D>("vertexfitter_chi2ndf_muon_not_merged","Vertex (fitter) chi2ndf for muon vertexes for NON merged protons",1000,0,100);
    h_vertex_resolution_neutrino_merged = tfs->make<TH1D>("vertex_resolution_neutrino_merged","Vertex resolution for neutrino vertexes for merged protons",1000,0,100);
+   h_vertexfitter_resolution_neutrino_merged = tfs->make<TH1D>("vertexfitter_resolution_neutrino_merged","Vertex (fitter) resolution for neutrino vertexes for merged protons",1000,0,100);
+   h_vertexfitter_chi2ndf_neutrino_merged = tfs->make<TH1D>("vertexfitter_chi2_neutrino_merged","Vertex (fitter) chi2ndf for neutrino vertexes for merged protons",1000,0,100);
    h_vertex_resolution_proton_merged = tfs->make<TH1D>("vertex_resolution_proton_merged","Vertex resolution for proton vertexes for merged protons",1000,0,100);
+   h_vertexfitter_resolution_proton_merged = tfs->make<TH1D>("vertexfitter_resolution_proton_merged","Vertex (fitter) resolution for proton vertexes for merged protons",1000,0,100);
+   h_vertexfitter_chi2ndf_proton_merged = tfs->make<TH1D>("vertexfitter_chi2ndf_proton_merged","Vertex (fitter) chi2ndf for proton vertexes for merged protons",1000,0,100);
    h_vertex_resolution_muon_merged = tfs->make<TH1D>("vertex_resolution_muon_merged","Vertex resolution for muon vertexes for merged protons",1000,0,100);
+   h_vertexfitter_resolution_muon_merged = tfs->make<TH1D>("vertexfitter_resolution_muon_merged","Vertex (fitter) resolution for muon vertexes for merged protons",1000,0,100);
+   h_vertexfitter_chi2ndf_muon_merged = tfs->make<TH1D>("vertexfitter_chi2ndf_muon_merged","Vertex (fitter) chi2ndf for muon vertexes for merged protons",1000,0,100);
    
    h_vertex_resolution_vs_not_tracked_above20MeV = tfs->make<TH2D>("h_vertex_resolution_vs_not_tracked_above20MeV","Vertex resolution for neutrino vertexes vs fraction of not tracked above 20MeV w.r.t to total # of protons",200,0,20,100,0,1);
    h_vertex_resolution_vs_not_tracked_below20MeV = tfs->make<TH2D>("h_vertex_resolution_vs_not_tracked_below","Vertex resolution for neutrino vertexes vs fraction of not tracked below 20MeV w.r.t to total # of protons",200,0,20,100,0,1);
    h_vertex_resolution_vs_not_tracked = tfs->make<TH2D>("h_vertex_resolution_vs_not_tracked","Vertex resolution for neutrino vertexes vs fraction of not tracked w.r.t to total # of protons",200,0,20,100,0,1);
+   h_vertexfitter_resolution_vs_not_tracked_above20MeV = tfs->make<TH2D>("h_vertexfitter_resolution_vs_not_tracked_above20MeV","Vertex (fitter) resolution for neutrino vertexes vs fraction of not tracked above 20MeV w.r.t to total # of protons",200,0,20,100,0,1);
+   h_vertexfitter_resolution_vs_not_tracked_below20MeV = tfs->make<TH2D>("h_vertexfitter_resolution_vs_not_tracked_below","Vertex (fitter) resolution for neutrino vertexes vs fraction of not tracked below 20MeV w.r.t to total # of protons",200,0,20,100,0,1);
+   h_vertexfitter_resolution_vs_not_tracked = tfs->make<TH2D>("h_vertexfitter_resolution_vs_not_tracked","Vertex (fitter) resolution for neutrino vertexes vs fraction of not tracked w.r.t to total # of protons",200,0,20,100,0,1);
    
     art::TFileDirectory hits_dir = tfs->mkdir("hits_dir");
    //hits analysis
@@ -2288,7 +2441,7 @@ int recohelper::RecoBenchmarker::FillAnalysisHistograms( int& count_tracked, int
 	    if ( fpdg[i] == 13 ) { //ismuon
 	    hmuon_length_all->Fill( flength[i] );
 	    hmuon_spectrum_all->Fill( fkinE[i] );
-	    if ( fis_tracked[i] &&  fmuon_dqdx.size() != 0) { //want that the muon is well matched and w/ dqdx info
+	    if ( fis_tracked[i] &&  fmuon_dqdx.size() != 0 ) { //want that the muon is well matched and w/ dqdx info
 		muon_pos = i; 
 	    	hmuon_length->Fill( flength[i] );
 	    	hmuon_spectrum->Fill( fkinE[i] );
@@ -2297,6 +2450,10 @@ int recohelper::RecoBenchmarker::FillAnalysisHistograms( int& count_tracked, int
 		float res = min ( sqrt( pow(freco_vertex_x[i] - fstart_x[i],2) + pow(freco_vertex_y[i] - fstart_y[i],2) + pow(freco_vertex_z[i] - fstart_z[i],2)) ,
 					sqrt( pow(freco_vertex_x[i] - fend_x[i],2) + pow(freco_vertex_y[i] - fend_y[i],2) + pow(freco_vertex_z[i] - fend_z[i],2)) );
 		h_vertex_resolution_muon->Fill( res );
+		float res_fitter = min ( sqrt( pow(freco_vertexfitter_x[i] - fstart_x[i],2) + pow(freco_vertexfitter_y[i] - fstart_y[i],2) + pow(freco_vertexfitter_z[i] - fstart_z[i],2)) ,
+					sqrt( pow(freco_vertexfitter_x[i] - fend_x[i],2) + pow(freco_vertexfitter_y[i] - fend_y[i],2) + pow(freco_vertexfitter_z[i] - fend_z[i],2)) );
+		h_vertexfitter_resolution_muon->Fill( res_fitter );
+		h_vertexfitter_chi2ndf_muon->Fill( freco_vertexfitter_chi2ndf[i] );
 		if ( sqrt( pow( freco_startx[i]- fstart_x[i] ,2) + pow( freco_starty[i]- fstart_y[i] ,2) + pow( freco_startz[i]- fstart_z[i] ,2) ) > 50 ) {
 			reco_muon = false; //skip these events, might have direction flipped
 	    	}
@@ -2314,6 +2471,10 @@ int recohelper::RecoBenchmarker::FillAnalysisHistograms( int& count_tracked, int
     //check if the neutrino reco'ed vertex is there 
     if ( !(abs(fnu_reco_x+1)<DBL_EPSILON && abs(fnu_reco_y+1)<DBL_EPSILON && abs(fnu_reco_z+1)<DBL_EPSILON) ) 
 	h_vertex_resolution_neutrino->Fill( sqrt( pow(fnu_reco_x - fneutrino_x,2) + pow(fnu_reco_y - fneutrino_y,2) + pow(fnu_reco_z - fneutrino_z,2) ) );	    
+    if ( !(abs(fnu_reco_fitter_x+1)<DBL_EPSILON && abs(fnu_reco_fitter_y+1)<DBL_EPSILON && abs(fnu_reco_fitter_z+1)<DBL_EPSILON) ) {
+	h_vertexfitter_resolution_neutrino->Fill( sqrt( pow(fnu_reco_fitter_x - fneutrino_x,2) + pow(fnu_reco_fitter_y - fneutrino_y,2) + pow(fnu_reco_fitter_z - fneutrino_z,2) ) );	    
+	h_vertexfitter_chi2ndf_neutrino->Fill( fnu_reco_fitter_chi2ndf );
+    }
 
     count_not_tracked = 0;
     count_tracked = 0;
@@ -2326,16 +2487,49 @@ int recohelper::RecoBenchmarker::FillAnalysisHistograms( int& count_tracked, int
 	    hproton_p_all->Fill( fp0[j] );
 	    hproton_l_all->Fill( flength[j] );
 	    hproton_kinE_all->Fill( fkinE[j] );
+	    
+	    if ( abs( fcostheta_muon[j] ) > sqrt(3)/2. ) {
+	    hproton_l_all_angle1->Fill( flength[j] );
+	    hproton_kinE_all_angle1->Fill( fkinE[j] );
+	    hproton_nhits_all_angle1->Fill( freco_mcp_collection_hits[j] ); //FIXME
+	    } else if ( abs( fcostheta_muon[j] ) >= 0.5 && abs( fcostheta_muon[j] ) <= sqrt(3)/2. ) { 
+	    hproton_l_all_angle2->Fill( flength[j] );
+	    hproton_kinE_all_angle2->Fill( fkinE[j] );
+	    hproton_nhits_all_angle2->Fill( freco_mcp_collection_hits[j] ); //FIXME
+	    } else {
+	    hproton_l_all_angle3->Fill( flength[j] );
+	    hproton_kinE_all_angle3->Fill( fkinE[j] );
+	    hproton_nhits_all_angle3->Fill( freco_mcp_collection_hits[j] ); //FIXME
+	    }
+
 	    h_theta_mu_length_all->Fill( fcostheta_muon[j], flength[j]);
 	    float res = min ( sqrt( pow(freco_vertex_x[j] - fstart_x[j],2) + pow(freco_vertex_y[j] - fstart_y[j],2) + pow(freco_vertex_z[j] - fstart_z[j],2)) ,
 					sqrt( pow(freco_vertex_x[j] - fend_x[j],2) + pow(freco_vertex_y[j] - fend_y[j],2) + pow(freco_vertex_z[j] - fend_z[j],2)) );
 	    h_vertex_resolution_proton->Fill( res );
+	    float res_fitter = min ( sqrt( pow(freco_vertexfitter_x[j] - fstart_x[j],2) + pow(freco_vertexfitter_y[j] - fstart_y[j],2) + pow(freco_vertexfitter_z[j] - fstart_z[j],2)) ,
+					sqrt( pow(freco_vertexfitter_x[j] - fend_x[j],2) + pow(freco_vertexfitter_y[j] - fend_y[j],2) + pow(freco_vertexfitter_z[j] - fend_z[j],2)) );
+	    h_vertexfitter_resolution_proton->Fill( res_fitter );
+	    h_vertexfitter_chi2ndf_proton->Fill( freco_vertexfitter_chi2ndf[j] );
 
 	    if ( fis_tracked[j] ) { //efficiency plots for all protons (but don't divide yet)
 	    	hproton_p->Fill( fp0[j] );
 	    	hproton_l->Fill( flength[j] );
 	    	hproton_kinE->Fill( fkinE[j] );
 	        h_theta_mu_length->Fill( fcostheta_muon[j], flength[j]);
+	    
+		if ( abs( fcostheta_muon[j] ) > sqrt(3)/2. ) { //theta < 30degrees
+	    		hproton_l_tracked_angle1->Fill( flength[j] );
+	    		hproton_kinE_tracked_angle1->Fill( fkinE[j] );
+	    		hproton_nhits_tracked_angle1->Fill( freco_mcp_collection_hits[j] ); //FIXME
+	    	} else if ( abs( fcostheta_muon[j] ) >= 0.5 && abs( fcostheta_muon[j] ) <= sqrt(3)/2. ) { 
+	    		hproton_l_tracked_angle2->Fill( flength[j] );
+	    		hproton_kinE_tracked_angle2->Fill( fkinE[j] );
+	    		hproton_nhits_tracked_angle2->Fill( freco_mcp_collection_hits[j] ); //FIXME
+	    	} else {
+	    		hproton_l_tracked_angle3->Fill( flength[j] );
+	    		hproton_kinE_tracked_angle3->Fill( fkinE[j] );
+	    		hproton_nhits_tracked_angle3->Fill( freco_mcp_collection_hits[j] ); //FIXME
+	  	}
 	    }
 
 
@@ -2369,6 +2563,9 @@ int recohelper::RecoBenchmarker::FillAnalysisHistograms( int& count_tracked, int
 	h_vertex_resolution_vs_not_tracked_above20MeV->Fill( sqrt( pow(fnu_reco_x - fneutrino_x,2) + pow(fnu_reco_y - fneutrino_y,2) + pow(fnu_reco_z - fneutrino_z,2) ), double(count_not_tracked)/tot_protons );
 	h_vertex_resolution_vs_not_tracked->Fill( sqrt( pow(fnu_reco_x - fneutrino_x,2) + pow(fnu_reco_y - fneutrino_y,2) + pow(fnu_reco_z - fneutrino_z,2) ), double(count_not_tracked + low_protons)/ (tot_protons+low_protons) );
 	h_vertex_resolution_vs_not_tracked_below20MeV->Fill( sqrt( pow(fnu_reco_x - fneutrino_x,2) + pow(fnu_reco_y - fneutrino_y,2) + pow(fnu_reco_z - fneutrino_z,2) ), double(low_protons)/ (tot_protons+low_protons) );
+	h_vertexfitter_resolution_vs_not_tracked_above20MeV->Fill( sqrt( pow(fnu_reco_fitter_x - fneutrino_x,2) + pow(fnu_reco_fitter_y - fneutrino_y,2) + pow(fnu_reco_fitter_z - fneutrino_z,2) ), double(count_not_tracked)/tot_protons );
+	h_vertexfitter_resolution_vs_not_tracked->Fill( sqrt( pow(fnu_reco_fitter_x - fneutrino_x,2) + pow(fnu_reco_fitter_y - fneutrino_y,2) + pow(fnu_reco_fitter_z - fneutrino_z,2) ), double(count_not_tracked + low_protons)/ (tot_protons+low_protons) );
+	h_vertexfitter_resolution_vs_not_tracked_below20MeV->Fill( sqrt( pow(fnu_reco_fitter_x - fneutrino_x,2) + pow(fnu_reco_fitter_y - fneutrino_y,2) + pow(fnu_reco_fitter_z - fneutrino_z,2) ), double(low_protons)/ (tot_protons+low_protons) );
 	}
 
 	if ( fmuon_residual.size() != fmuon_dqdx.size()) cout << "ERROR on calorimetry vector sizes!!!" << endl;
@@ -2389,16 +2586,26 @@ int recohelper::RecoBenchmarker::FillAnalysisHistograms( int& count_tracked, int
 		hmuon_pos_res_goodprotons->Fill( sqrt( pow( freco_startx[muon_pos]- fstart_x[muon_pos] ,2) + pow( freco_starty[muon_pos]- fstart_y[muon_pos] ,2) + pow( freco_startz[muon_pos]- fstart_z[muon_pos] ,2) ) );
     		if ( !(abs(fnu_reco_x+1)<DBL_EPSILON && abs(fnu_reco_y+1)<DBL_EPSILON && abs(fnu_reco_z+1)<DBL_EPSILON) ) 
 	        h_vertex_resolution_neutrino_not_merged->Fill( sqrt( pow(fnu_reco_x - fneutrino_x,2) + pow(fnu_reco_y - fneutrino_y,2) + pow(fnu_reco_z - fneutrino_z,2) ) );	    
+	        h_vertexfitter_resolution_neutrino_not_merged->Fill( sqrt( pow(fnu_reco_fitter_x - fneutrino_x,2) + pow(fnu_reco_fitter_y - fneutrino_y,2) + pow(fnu_reco_fitter_z - fneutrino_z,2) ) );	    
+	        h_vertexfitter_chi2ndf_neutrino_not_merged->Fill( fnu_reco_fitter_chi2ndf  );	    
 		
     		for (unsigned j=0; j < fpdg.size(); j++) {
 	    	if ( !reco_muon ) break; //select events with a reco muon
 	    	float res = min ( sqrt( pow(freco_vertex_x[j] - fstart_x[j],2) + pow(freco_vertex_y[j] - fstart_y[j],2) + pow(freco_vertex_z[j] - fstart_z[j],2)) ,
 					sqrt( pow(freco_vertex_x[j] - fend_x[j],2) + pow(freco_vertex_y[j] - fend_y[j],2) + pow(freco_vertex_z[j] - fend_z[j],2)) );
+	    	float res_fitter = min ( sqrt( pow(freco_vertexfitter_x[j] - fstart_x[j],2) + pow(freco_vertexfitter_y[j] - fstart_y[j],2) + pow(freco_vertexfitter_z[j] - fstart_z[j],2)) ,
+					sqrt( pow(freco_vertexfitter_x[j] - fend_x[j],2) + pow(freco_vertexfitter_y[j] - fend_y[j],2) + pow(freco_vertexfitter_z[j] - fend_z[j],2)) );
 		
-		if ( fpdg[j]==13 ) h_vertex_resolution_muon_not_merged->Fill( res );
+		if ( fpdg[j]==13 ) {
+			h_vertex_resolution_muon_not_merged->Fill( res );
+			h_vertexfitter_resolution_muon_not_merged->Fill( res_fitter );
+			h_vertexfitter_chi2ndf_muon_not_merged->Fill( freco_vertexfitter_chi2ndf[j] );
+		}
 	    	if ( fpdg[j]!=2212 && fp0[j] <= 0.2 && !fis_tracked[j]) continue; //watch only reco protons with p>0.2Gev/c
    		hproton_pos_res_goodprotons->Fill(  sqrt( pow( freco_startx[j]- fstart_x[j] ,2) + pow( freco_starty[j]- fstart_y[j] ,2) + pow( freco_startz[j]- fstart_z[j] ,2) ) ); 
 	    	h_vertex_resolution_proton_not_merged->Fill( res );
+	    	h_vertexfitter_resolution_proton_not_merged->Fill( res_fitter );
+	    	h_vertexfitter_chi2ndf_proton_not_merged->Fill( freco_vertexfitter_chi2ndf[j] );
 
    		if (lowmomentum_p) hproton_pos_res_lowprotons->Fill(  sqrt( pow( freco_startx[j]- fstart_x[j] ,2) + pow( freco_starty[j]- fstart_y[j] ,2) + pow( freco_startz[j]- fstart_z[j] ,2) ) ); 
 		}
@@ -2419,17 +2626,28 @@ int recohelper::RecoBenchmarker::FillAnalysisHistograms( int& count_tracked, int
 		h_dqdx_merged_service->Reset();
 		    
 		hmuon_pos_res_badprotons->Fill( sqrt( pow( freco_startx[muon_pos]- fstart_x[muon_pos] ,2) + pow( freco_starty[muon_pos]- fstart_y[muon_pos] ,2) + pow( freco_startz[muon_pos]- fstart_z[muon_pos] ,2) ) );
-    		if ( !(abs(fnu_reco_x+1)<DBL_EPSILON && abs(fnu_reco_y+1)<DBL_EPSILON && abs(fnu_reco_z+1)<DBL_EPSILON) ) 
+    		if ( !(abs(fnu_reco_x+1)<DBL_EPSILON && abs(fnu_reco_y+1)<DBL_EPSILON && abs(fnu_reco_z+1)<DBL_EPSILON) ) {
 	        h_vertex_resolution_neutrino_merged->Fill( sqrt( pow(fnu_reco_x - fneutrino_x,2) + pow(fnu_reco_y - fneutrino_y,2) + pow(fnu_reco_z - fneutrino_z,2) ) );	    
+	        h_vertexfitter_resolution_neutrino_merged->Fill( sqrt( pow(fnu_reco_fitter_x - fneutrino_x,2) + pow(fnu_reco_fitter_y - fneutrino_y,2) + pow(fnu_reco_fitter_z - fneutrino_z,2) ) );	    
+	        h_vertexfitter_chi2ndf_neutrino_merged->Fill( fnu_reco_fitter_chi2ndf );	    
+		}
     		for (unsigned j=0; j<fpdg.size(); j++) {
 	    	if ( !reco_muon ) break; //select events with a reco muon
 	    	float res = min ( sqrt( pow(freco_vertex_x[j] - fstart_x[j],2) + pow(freco_vertex_y[j] - fstart_y[j],2) + pow(freco_vertex_z[j] - fstart_z[j],2)) ,
 					sqrt( pow(freco_vertex_x[j] - fend_x[j],2) + pow(freco_vertex_y[j] - fend_y[j],2) + pow(freco_vertex_z[j] - fend_z[j],2)) );
+	    	float res_fitter = min ( sqrt( pow(freco_vertexfitter_x[j] - fstart_x[j],2) + pow(freco_vertexfitter_y[j] - fstart_y[j],2) + pow(freco_vertexfitter_z[j] - fstart_z[j],2)) ,
+					sqrt( pow(freco_vertexfitter_x[j] - fend_x[j],2) + pow(freco_vertexfitter_y[j] - fend_y[j],2) + pow(freco_vertexfitter_z[j] - fend_z[j],2)) );
 		
-		if ( fpdg[j]==13 ) h_vertex_resolution_muon_merged->Fill( res );
+		if ( fpdg[j]==13 ) {
+			h_vertex_resolution_muon_merged->Fill( res );
+			h_vertexfitter_resolution_muon_merged->Fill( res_fitter );
+			h_vertexfitter_chi2ndf_muon_merged->Fill( freco_vertexfitter_chi2ndf[j] );
+		}
 	    	if ( fpdg[j]!=2212 && fp0[j] <= 0.2 && !fis_tracked[j]) continue; //watch only reco protons with p>0.2Gev/c
    		hproton_pos_res_badprotons->Fill(  sqrt( pow( freco_startx[j]- fstart_x[j] ,2) + pow( freco_starty[j]- fstart_y[j] ,2) + pow( freco_startz[j]- fstart_z[j] ,2) ) ); 
 	    	h_vertex_resolution_proton_merged->Fill( res );
+	    	h_vertexfitter_resolution_proton_merged->Fill( res_fitter );
+	    	h_vertexfitter_chi2ndf_proton_merged->Fill( freco_vertexfitter_chi2ndf[j] );
    		if (lowmomentum_p) hproton_pos_res_lowprotons->Fill(  sqrt( pow( freco_startx[j]- fstart_x[j] ,2) + pow( freco_starty[j]- fstart_y[j] ,2) + pow( freco_startz[j]- fstart_z[j] ,2) ) ); 
 		}
 	}
@@ -2495,7 +2713,11 @@ void recohelper::RecoBenchmarker::AllocateRecoVectors() {
 	freco_vertex_x.push_back(-1);
 	freco_vertex_y.push_back(-1);
 	freco_vertex_z.push_back(-1);
-	freco_vertex_chi2ndf.push_back(-1);
+	freco_vertexfitter_x.push_back(-1);
+	freco_vertexfitter_y.push_back(-1);
+	freco_vertexfitter_z.push_back(-1);
+	freco_vertexfitter_chi2ndf.push_back(-1);
+	freco_vertexfitter_chi2.push_back(-1);
 	fnot_clustered.push_back(0);
 	fclustered.push_back(0);
 	fclustered_matched.push_back(0);
