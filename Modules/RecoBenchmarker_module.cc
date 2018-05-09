@@ -47,6 +47,7 @@
 #include "TTree.h"
 #include "TH2D.h"
 #include "TH1D.h"
+#include <algorithm>
 
 // local includes
 #include "uboone/RecoBenchmarker/Algos/recoBenchmarkerUtility.h"
@@ -159,6 +160,7 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
    float fnu_reco_fitter_chi2ndf;
    float fnu_reco_fitter_chi2;
    std::vector<bool> fis_tracked;
+   std::vector<bool> fis_shower_matched;
    std::vector<bool> fmatch_multiplicity;
    //std::vector<bool> fis_mismatched; //it says if the MC truth assignment in different planes is different (possible hint for wrong or problematic backtracking)
    std::vector<float> fcostheta_muon_reco; //MCtruth info
@@ -421,7 +423,14 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
    TH2D* h_vertexfitter_resolution_vs_not_tracked_above20MeV;
    TH2D* h_vertexfitter_resolution_vs_not_tracked_below20MeV;
    TH2D* h_vertexfitter_resolution_vs_not_tracked;
-   
+  
+   //shower monitoring
+   TH1D* h_shower_pdg;
+   TH1D* h_n_proton_showers;
+   TH1D* h_shower_proton_kinE;
+   TH1D* h_shower_proton_l;
+   TH1D* h_shower_proton_nhits;
+   TH1D* h_shower_proton_costheta_muon;
   
    //hits studies
    TH1D* h_tracked_not_clustered_distance_nuvtx;
@@ -691,6 +700,7 @@ void recohelper::RecoBenchmarker::beginJob()
   recoTree->Branch("reco_vertexfitter_z",&freco_vertexfitter_z);
   recoTree->Branch("reco_vertexfitter_chi2ndf",&freco_vertexfitter_chi2ndf);
   recoTree->Branch("reco_vertexfitter_chi2",&freco_vertexfitter_chi2);
+  recoTree->Branch("is_shower_matched",&fis_shower_matched);
 
   //hits analysis
   recoTree->Branch("reco_track_hits",&freco_track_hits);
@@ -779,6 +789,8 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 
   art::ValidHandle< std::vector<recob::Shower> > showerHandle =
     e.getValidHandle< std::vector<recob::Shower> >(fShowerLabel);
+  std::vector< art::Ptr<recob::Shower> >  showerList;  
+  art::fill_ptr_vector(showerList, showerHandle); 
 
   art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromShowers(showerHandle, e, fShowerTruthLabel);
 
@@ -1222,7 +1234,77 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
     
         track_id_counter++;
   }//Tracks
-  
+
+
+  //checks on showers
+  //I am indexing showers manually because I am lazy and I am copying what I did for tracks
+  int shower_id_counter = 0;
+  int previous_shower_id = -1;
+  int count_proton_showers = 0;
+  std::vector<int> mcp_showers_ids;
+
+  //int all_hits_tracks = 0;
+  // loop tracks and do truth matching 
+  for (auto const& thisShower : showerList) {
+    
+    std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromShowers.at(shower_id_counter);
+
+    if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same shower!" << std::endl;
+    if ( previous_shower_id >= thisShower->ID() ) mf::LogError(__FUNCTION__) << "ERROR! The Shower ID's are not in ascending order! " << std::endl;
+
+	
+    for (auto const& thisMcp : mcps){
+    
+    //this if is necessary, since sometimes a particle is matched to a secondary (electron, etc) -> to be checked
+    if ( !(std::abs(thisMcp->PdgCode()) == 11 && thisMcp->Mother() == muon_id && abs(thisMcp->Position().X()-muon_endx) < DBL_EPSILON &&
+		    abs(thisMcp->Position().Y()-muon_endy) < DBL_EPSILON && abs(thisMcp->Position().Z()-muon_endz) < DBL_EPSILON ) )
+    if ( std::abs(thisMcp->PdgCode()) == 14 || thisMcp->Process()!="primary" || thisMcp->StatusCode()!=1 || thisMcp->Mother()>0 ) continue; //we only want primaries
+    
+#if isDebug == 1
+      std::cout << "SHOWER MATCHED PARTICLE: " << std::endl;
+      std::cout << "---- MCParticle Information ----"
+        << "\nTrack ID   : " << thisMcp->TrackId() 
+        << "\nPdgCode    : " << thisMcp->PdgCode()
+        << "\nProcess    : " << thisMcp->Process()
+        << "\nStatusCode : " << thisMcp->StatusCode()
+        << "\nMother Pdg : " << thisMcp->Mother()
+        << "\nPx, Py, Pz : " << thisMcp->Px() << ", " << thisMcp->Py() << ", " << thisMcp->Pz()
+        << std::endl;
+#endif
+    auto it_found = std::find( fg4_id.begin(), fg4_id.end(), thisMcp->TrackId() ) ;
+    if (it_found==fg4_id.end()) mf::LogError(__FUNCTION__) << "ERROR!!! Matched particle not found!" << std::endl;
+    size_t pos = it_found - fg4_id.begin();
+	
+
+    //save information on reco track
+    if (fis_tracked[pos] == true ) std::cout << "Tracked particle matched to a shower?!?! >>>>>> SEEMS WRONG!!!" << std::endl;
+    
+    std::cout << "FOUND A SHOWER!!! >>>>>>>>> pdg=" << thisMcp->PdgCode() << std::endl;
+    fis_shower_matched[pos] = true;
+    h_shower_pdg->Fill( thisMcp->PdgCode() );
+	
+    if ( fpdg[pos] == 2212 ) { //protons
+	    h_shower_proton_l->Fill( flength[pos] );
+	    h_shower_proton_kinE->Fill( fkinE[pos] );
+	    h_shower_proton_nhits->Fill( fnhits[pos] );
+	    h_shower_proton_costheta_muon->Fill( fcostheta_muon[pos] );
+	    if ( std::find( mcp_showers_ids.begin(), mcp_showers_ids.end(), fg4_id[pos] ) == mcp_showers_ids.end() )count_proton_showers++;
+	    std::cout << ">>>>PROTON SHOWER" << std::endl;
+	    //std::cout << ">>>>>>>FILE " << art::RootInputFile::fileName << std::endl;
+	    std::cout << "Event=" << fEvent << " Run=" << fRun << " SubRun=" << fSubRun << std::endl;
+
+    }
+    mcp_showers_ids.push_back(fg4_id[pos]);
+ 	
+    }//MCParticle
+        
+        shower_id_counter++;
+  }//Shower
+
+	
+  h_n_proton_showers->Fill(count_proton_showers);
+
+
   //----------------------------
   // Vertex
   //----------------------------
@@ -1512,6 +1594,7 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 				}
 				//std::cout << "SONO QUA 2" << std::endl;
 			}
+			if (pfp_track.size()==0) std::cout << ">>>>>>>>SHOWER!!!!!!!!!!!!!!" << std::endl;
 			if (pfp_track.size()!=1) std::cout << "MORE THAN 1 PFP per track!" << std::endl;
 			if ( pfp_track[0]->Self() != pfp_id ) continue;
 			//std::cout << "FOUND PFP" << std::endl;
@@ -2280,7 +2363,14 @@ void recohelper::RecoBenchmarker::AllocateAnalysisHistograms() {
    h_vertexfitter_resolution_vs_not_tracked_below20MeV = tfs->make<TH2D>("h_vertexfitter_resolution_vs_not_tracked_below","Vertex (fitter) resolution for neutrino vertexes vs fraction of not tracked below 20MeV w.r.t to total # of protons",200,0,20,100,0,1);
    h_vertexfitter_resolution_vs_not_tracked = tfs->make<TH2D>("h_vertexfitter_resolution_vs_not_tracked","Vertex (fitter) resolution for neutrino vertexes vs fraction of not tracked w.r.t to total # of protons",200,0,20,100,0,1);
    
-    art::TFileDirectory hits_dir = tfs->mkdir("hits_dir");
+   h_shower_pdg = tfs->make<TH1D>("shower_pdg","PDG of a PFP recon as a shower",10000,0,10000);
+   h_n_proton_showers = tfs->make<TH1D>("n_proton_showers","Number of protons recon as shower per event",20,0,20);
+   h_shower_proton_kinE = tfs->make<TH1D>("shower_proton_kinE","Shower - Proton kinE; Kinetic Energy (GeV)",1000,0,2); 
+   h_shower_proton_l = tfs->make<TH1D>("shower_proton_l","Shower - Proton Length; True length (cm)",1000,0,200); 
+   h_shower_proton_nhits = tfs->make<TH1D>("shower_proton_nhits","Shower - Proton nhits; nhits",1000,0,1000);
+   h_shower_proton_costheta_muon = tfs->make<TH1D>("shower_proton_costheta_muon","Cos #theta between muon and protons for SHOWER protons;cos #theta",1000,-1,1); 	    
+   
+   art::TFileDirectory hits_dir = tfs->mkdir("hits_dir");
    //hits analysis
    h_tracked_not_clustered_distance_nuvtx = hits_dir.make<TH1D>("tracked_not_clustered_distance_nuvtx", "Distance between hit and nu vertex for not clustered hits for tracked particles", 1000,0,100 );
    h_tracked_not_clustered_muon_start = hits_dir.make<TH1D>("tracked_not_clustered_muon_start", "Distance between hit and muon start position for not clustered hits for tracked muons", 1000,0,100 );
@@ -2425,7 +2515,6 @@ void recohelper::RecoBenchmarker::AllocateAnalysisHistograms() {
    h_muon_clustered_mismatched_reco_charge_low_protons = hits_dir.make<TH2D>("muon_clustered_mismatched_reco_charge_low_protons", "Clustered and mismatched hit charge vs fraction of non clustered/total hits for muons in \"bad proton\" events",1000,0,1000,500,0,1);
    h_muon_CMI_lateral_charge_low_protons = hits_dir.make<TH2D>("muon_CMI_lateral_charge_low_protons","Clustered and mismatched hit charge vs lateral distance muon - proton for muons in \"bad proton\" events", 1000,0,1000,800,0,200);
    h_muon_CMI_costheta_charge_low_protons = hits_dir.make<TH2D>("muon_CMI_costheta_charge_low_protons","Clustered and mismatched hit charge vs costheta muon - proton for muons in \"bad proton\" events", 1000,0,1000,100,-1,1);
-
 
 }
 
@@ -2688,6 +2777,7 @@ void recohelper::RecoBenchmarker::FillCumulativeHistograms() {
 
 void recohelper::RecoBenchmarker::AllocateRecoVectors() {
 	fis_tracked.push_back(false);
+	fis_shower_matched.push_back(false);
 	fmatch_multiplicity.push_back(0);
 	flength_reco.push_back(-1);
 	freco_momentum_mcs.push_back(-1);
@@ -2884,6 +2974,7 @@ void recohelper::RecoBenchmarker::clear_vectors(){
 
    //info coming from the tracking algorithm - when there is mc truth
   fis_tracked.clear();
+  fis_shower_matched.clear();
   fmatch_multiplicity.clear();
    fcostheta_muon_reco.clear(); //MCtruth info
    freco_momentum_mcs.clear(); //(GeV) MCS
