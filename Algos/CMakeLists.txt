@@ -21,7 +21,7 @@ art_make( BASENAME_ONLY
             SignalShapingServiceMicroBooNE_service
             larevt_CalibrationDBI_IOVData
             larevt_CalibrationDBI_Providers
-	    larsim_MCCheater_BackTrackerService_service
+	    larsim_MCCheater_BackTracker_service
             larsim_Simulation
             lardataobj_RawData
             lardataobj_RecoBase

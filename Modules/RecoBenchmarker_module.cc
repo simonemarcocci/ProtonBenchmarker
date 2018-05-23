@@ -38,7 +38,7 @@
 #include "larevt/SpaceChargeServices/SpaceChargeService.h"
 #include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
 #include "larcoreobj/SimpleTypesAndConstants/geo_types.h"
-#include "larcorealg/Geometry/WireGeo.h"
+#include "larcore/Geometry/WireGeo.h"
 #include "lardataobj/MCBase/MCHitCollection.h"
 #include "larpandora/LArPandoraInterface/LArPandora.h"
 
@@ -364,6 +364,11 @@ class recohelper::RecoBenchmarker : public art::EDAnalyzer {
    TH1D* hproton_nhits_all_angle2;
    TH1D* hproton_nhits_tracked_angle3;
    TH1D* hproton_nhits_all_angle3;
+   
+   TH1D* hproton_nhits;
+   TH1D* hproton_nhits_CP;
+   TH2D* hproton_nhits_theta_mu;
+   TH2D* hproton_nhits_CP_theta_mu;
    
    TH1D* h_pmu_end_not_tracked;
    TH1D* h_pmu_end_tracked;
@@ -860,9 +865,9 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
   fccnc = thisNeutrino.CCNC();
   finteraction = thisNeutrino.InteractionType();
  
-  double xOffset = 0.7 - SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()) ).x();
-  double yOffset = SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()) ).y();
-  double zOffset = SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()) ).z();
+  double xOffset = 0.7 - SCE->GetPosOffsets( thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()  )[0];
+  double yOffset = SCE->GetPosOffsets( thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z() )[1];
+  double zOffset = SCE->GetPosOffsets( thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z() )[2];
   if (!space_charge) {
 	  xOffset=0;
 	  yOffset=0;
@@ -975,9 +980,9 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	double yOffset = scecorr.Y();
 	double zOffset = scecorr.Z();*/
 	//anatree recipe:
-        xOffset = 0.7 - SCE->GetPosOffsets( geo::Point_t(thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z()) ).x();
-        yOffset = SCE->GetPosOffsets( geo::Point_t(thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z()) ).y();
-        zOffset = SCE->GetPosOffsets( geo::Point_t(thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z()) ).z();
+        xOffset = 0.7 - SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z() )[0];
+        yOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z() )[1];
+        zOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z() )[2];
 	if (!space_charge) {
 		xOffset = 0;
 		yOffset = 0;
@@ -988,9 +993,9 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	fstart_z.push_back ( thisMcp->Position().Z() + zOffset );
 	
 	if (space_charge) {
-        xOffset = 0.7 - SCE->GetPosOffsets( geo::Point_t(thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z()) ).x();
-        yOffset = SCE->GetPosOffsets( geo::Point_t(thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z()) ).y();
-        zOffset = SCE->GetPosOffsets( geo::Point_t(thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z()) ).z();
+        xOffset = 0.7 - SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z() )[0];
+        yOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z() )[1];
+        zOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z() )[2];
 	}
 	fend_x.push_back ( thisMcp->EndPosition().X() + xOffset );
 	fend_y.push_back ( thisMcp->EndPosition().Y() + yOffset );
@@ -1046,6 +1051,7 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	int n_collection_hits = 0;
 	int total_hit_charge = 0;
 	//std::cout << "NUMBER OF HITS " << hits_mcp.size() << std::endl;
+	fnhits[ itt - fg4_id.begin() ] = 0;
 	if ( hits_mcp.size() ) {
 	//mcp hits
 	for ( auto const& iter_hit : hits_mcp ){
@@ -1053,6 +1059,7 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 			n_collection_hits++;
 			total_hit_charge += iter_hit->Integral();
 		}
+		fnhits[ itt - fg4_id.begin() ] = fnhits[ itt - fg4_id.begin() ] + 1;
 	}
 	freco_mcp_collection_hits[itt - fg4_id.begin() ] =  n_collection_hits ;
 	freco_mcp_collection_charge[itt - fg4_id.begin()] = total_hit_charge ;
@@ -1369,8 +1376,10 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	  fnu_reco_fitter_x = xyzz[0];
 	  fnu_reco_fitter_y = xyzz[1];
 	  fnu_reco_fitter_z = xyzz[2];
-	  fnu_reco_fitter_chi2ndf = vertexfitter_pfp[0]->chi2PerNdof();
-	  fnu_reco_fitter_chi2 = vertexfitter_pfp[0]->chi2();
+	  //fnu_reco_fitter_chi2ndf = vertexfitter_pfp[0]->chi2PerNdof();
+	  //fnu_reco_fitter_chi2 = vertexfitter_pfp[0]->chi2();
+	  fnu_reco_fitter_chi2ndf = -1;
+	  fnu_reco_fitter_chi2 = -1;
 	  }
 	  
 	  //investigate matching particles and tracks
@@ -1384,8 +1393,10 @@ void recohelper::RecoBenchmarker::analyze(art::Event const & e)
 	  freco_vertexfitter_x[ mc_pos ] = xyzz[0];
 	  freco_vertexfitter_y[ mc_pos ] = xyzz[1];
 	  freco_vertexfitter_z[ mc_pos ] = xyzz[2];
-	  freco_vertexfitter_chi2ndf[ mc_pos ] = vertexfitter_pfp[0]->chi2PerNdof(); 
-	  freco_vertexfitter_chi2[ mc_pos ] = vertexfitter_pfp[0]->chi2(); 
+	  //freco_vertexfitter_chi2ndf[ mc_pos ] = vertexfitter_pfp[0]->chi2PerNdof(); 
+	  //freco_vertexfitter_chi2[ mc_pos ] = vertexfitter_pfp[0]->chi2(); 
+	  freco_vertexfitter_chi2ndf[ mc_pos ] = -1; 
+	  freco_vertexfitter_chi2[ mc_pos ] = -1; 
   }
   } //is vertex fitter
 
@@ -2303,7 +2314,11 @@ void recohelper::RecoBenchmarker::AllocateAnalysisHistograms() {
    hproton_nhits_all_angle2 = tfs->make<TH1D>("proton_nhits_all_angle2","Proton reco efficiency when #mu-p angle is <60 && > 30degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
    hproton_nhits_tracked_angle3 = tfs->make<TH1D>("proton_nhits_tracked_angle3","Proton reco efficiency when #mu-p angle is >60degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
    hproton_nhits_all_angle3 = tfs->make<TH1D>("proton_nhits_all_angle3","Proton reco efficiency when #mu-p angle is >60degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
-   
+  
+   hproton_nhits = tfs->make<TH1D>("proton_nhits","nhits for reco'ed protons; nhits",1000,0,1000); //reco efficiency protons vs kin E
+   hproton_nhits_CP = tfs->make<TH1D>("proton_nhits_CP","Collection Plane nhits for reco'ed protons; nhits",1000,0,1000); //reco efficiency protons vs kin E
+   hproton_nhits_theta_mu = tfs->make<TH2D>("proton_nhits_theta_mu","Proton nhits vs angle with muon; nhits; #theta",1000,0,1000,100,0, 3.1415);
+   hproton_nhits_CP_theta_mu = tfs->make<TH2D>("proton_nhits_CP_theta_mu","Proton collection plane nhits vs angle with muon; nhits; #theta",1000,0,1000,100,0, 3.1415);
    
    h_pmu_end_not_tracked = tfs->make<TH1D>("pmu_end_not_tracked","Not Tracked protons;Distance (cm);",1000,0,100); //lateral distance between proton end and muon
    h_pmu_end_tracked = tfs->make<TH1D>("pmu_end_tracked","Tracked protons;Distance (cm);",1000,0,100); //lateral distance between proton end and muon
@@ -2605,6 +2620,10 @@ int recohelper::RecoBenchmarker::FillAnalysisHistograms( int& count_tracked, int
 	    	hproton_l->Fill( flength[j] );
 	    	hproton_kinE->Fill( fkinE[j] );
 	        h_theta_mu_length->Fill( fcostheta_muon[j], flength[j]);
+   		hproton_nhits->Fill( fnhits[j] );
+   		hproton_nhits_CP->Fill( freco_mcp_collection_hits[j] );
+   		hproton_nhits_theta_mu->Fill ( fnhits[j], acos(fcostheta_muon[j]) ) ;
+   		hproton_nhits_CP_theta_mu->Fill( freco_mcp_collection_hits[j], acos(fcostheta_muon[j]) );
 	    
 		if ( abs( fcostheta_muon[j] ) > sqrt(3)/2. ) { //theta < 30degrees
 	    		hproton_l_tracked_angle1->Fill( flength[j] );
