@@ -101,7 +101,7 @@ class recohelper::ProtonBenchmarker : public art::EDAnalyzer {
     std::string fMCHitLabel;
 
 
-    pbutil::recoBenchmarkerUtility _pbutilInstance;
+    pbutil::protonBenchmarkerUtility _pbutilInstance;
 
     StoredEvent* event_store;
     reco_histo::HistoMaker* histo_maker;
