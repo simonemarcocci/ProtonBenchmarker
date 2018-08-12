@@ -6,16 +6,18 @@ set( ROOTLIB -L$ENV{ROOTSYS}/lib -lCore -lRIO -lNet -lHist -lGraf -lGraf3d -lGpa
 link_libraries( ${LIB_NAME} -L$ENV{BOOST_LIB} -lboost_system ${ROOTLIB})
 
 art_make( BASENAME_ONLY
-          LIBRARY_NAME uboonecode_uboone_RecoBenchmarker
+          LIBRARY_NAME uboonecode_uboone_ProtonBenchmarker
           LIB_LIBRARIES
-            uboonecode_uboone_RecoBenchmarker_Algos
+            uboonecode_uboone_ProtonBenchmarker_Algos
+	    uboonecode_uboone_ProtonBenchmarker_Datatypes
 	    ${PANDORASDK}
 	    ${PANDORAMONITORING}
   
           MODULE_LIBRARIES 
 	    larpandora_LArPandoraInterface
 	    LArPandoraContent
-            uboonecode_uboone_RecoBenchmarker_Algos
+            uboonecode_uboone_ProtonBenchmarker_Algos
+	    uboonecode_uboone_ProtonBenchmarker_Datatypes
             larcore_Geometry_Geometry_service
             larsim_Simulation nutools_ParticleNavigation lardataobj_Simulation
 	    larsim_MCCheater_BackTracker_service

@@ -1,8 +1,8 @@
-#include "recoBenchmarkerUtility.h"
+#include "protonBenchmarkerUtility.h"
 
-namespace rbutil{
+namespace pbutil{
 
-  bool recoBenchmarkerUtility::isInTPC(const art::Ptr< simb::MCParticle >& a){
+  bool protonBenchmarkerUtility::isInTPC(const art::Ptr< simb::MCParticle >& a){
     
     float sx = a->Vx();
     float sy = a->Vy();
@@ -18,7 +18,7 @@ namespace rbutil{
 
   }
   
-  bool recoBenchmarkerUtility::isInTPC(const simb::MCParticle & a){
+  bool protonBenchmarkerUtility::isInTPC(const simb::MCParticle & a){
     
     float sx = a.Vx();
     float sy = a.Vy();
@@ -35,7 +35,7 @@ namespace rbutil{
   }
   
 
-  std::vector<double> recoBenchmarkerUtility::getMomentumVector(const art::Ptr< simb::MCParticle >& a){
+  std::vector<double> protonBenchmarkerUtility::getMomentumVector(const art::Ptr< simb::MCParticle >& a){
 
     std::vector<double> aMom;
     aMom = {a->Px(), a->Py(), a->Pz()};
@@ -44,7 +44,7 @@ namespace rbutil{
 
   }
 
-  std::vector<double> recoBenchmarkerUtility::getMomentumVector(const recob::Track& a){
+  std::vector<double> protonBenchmarkerUtility::getMomentumVector(const recob::Track& a){
 
     std::vector<double> aMom;
     auto const& smv = a.StartMomentumVector();
@@ -54,7 +54,7 @@ namespace rbutil{
 
   }
 
-  float recoBenchmarkerUtility::getAngle(const std::vector<double> a, const std::vector<double> b, recoBenchmarkerUtility rbutil, std::string proj){
+  float protonBenchmarkerUtility::getAngle(const std::vector<double> a, const std::vector<double> b, protonBenchmarkerUtility rbutil, std::string proj){
 
     std::vector<double> aMom;
     std::vector<double> bMom;
@@ -98,7 +98,7 @@ namespace rbutil{
     return angle;
   }
 
-  std::vector<float> recoBenchmarkerUtility::getUnitVector(std::vector<double> a){
+  std::vector<float> protonBenchmarkerUtility::getUnitVector(std::vector<double> a){
 /*
     float ax = a.at(0);
     float ay = a.at(1);
@@ -132,7 +132,7 @@ namespace rbutil{
 
   }
 
-  float recoBenchmarkerUtility::getDotProduct(std::vector<float> a, std::vector<float> b){
+  float protonBenchmarkerUtility::getDotProduct(std::vector<float> a, std::vector<float> b){
 
     if (a.size() != b.size())
       throw std::invalid_argument("Cannot dot product vectors of different sizes");
@@ -148,7 +148,7 @@ namespace rbutil{
 
   }
  
-  std::vector<float> recoBenchmarkerUtility::getHitXZPosition(const recob::Hit& thisHit, recoBenchmarkerUtility rbutil){
+  std::vector<float> protonBenchmarkerUtility::getHitXZPosition(const recob::Hit& thisHit, protonBenchmarkerUtility rbutil){
 
     float hitChannel = (float)thisHit.Channel();
     float hitX = rbutil.convertTicksToX(thisHit);
@@ -160,7 +160,7 @@ namespace rbutil{
 
   }
 
-  float recoBenchmarkerUtility::convertTicksToX(const recob::Hit& thisHit){
+  float protonBenchmarkerUtility::convertTicksToX(const recob::Hit& thisHit){
 
     double tick = thisHit.PeakTime();
 
@@ -184,7 +184,7 @@ namespace rbutil{
 
   }
 
-  bool recoBenchmarkerUtility::isHitNearVertex(std::vector<float> v, std::vector<float> h){
+  bool protonBenchmarkerUtility::isHitNearVertex(std::vector<float> v, std::vector<float> h){
 
     float maxDistanceFromVertex = 5.0;
 

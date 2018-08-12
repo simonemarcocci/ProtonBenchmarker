@@ -1,7 +1,7 @@
 BEGIN_PROLOG
 
-RecoBenchmarker: {
-      module_type:  "RecoBenchmarker"
+ProtonBenchmarker: {
+      module_type:  "ProtonBenchmarker"
       TrackLabel:   "pandoraNu"
       PfpLabel:   "pandoraNu"
       PfpAssnLabel:   "pandoraNu"

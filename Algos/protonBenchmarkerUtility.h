@@ -1,5 +1,5 @@
-#ifndef RECOBENCHMARKERUTILITY_H
-#define RECOBENCHMARKERUTILITY_H
+#ifndef PROTONBENCHMARKERUTILITY_H
+#define PROTONBENCHMARKERUTILITY_H
 
 // larsoft includes
 #include "nusimdata/SimulationBase/MCParticle.h"
@@ -23,9 +23,9 @@
 #include <stdexcept>
 #include <cmath>
 
-namespace rbutil{
+namespace pbutil{
 
-  class recoBenchmarkerUtility{
+  class protonBenchmarkerUtility{
 
     public:
 
@@ -37,13 +37,13 @@ namespace rbutil{
 
       std::vector<double> getMomentumVector(const recob::Track& a);
 
-      float getAngle(const std::vector<double> a, const std::vector<double> b, recoBenchmarkerUtility rbutil, std::string proj);
+      float getAngle(const std::vector<double> a, const std::vector<double> b, protonBenchmarkerUtility rbutil, std::string proj);
       
       std::vector<float> getUnitVector(std::vector<double> a); 
 
       float getDotProduct(std::vector<float> a, std::vector<float> b);
 
-      std::vector<float> getHitXZPosition(const recob::Hit& thisHit, recoBenchmarkerUtility rbutil);
+      std::vector<float> getHitXZPosition(const recob::Hit& thisHit, protonBenchmarkerUtility rbutil);
 
       float convertTicksToX(const recob::Hit& thisHit);
 
