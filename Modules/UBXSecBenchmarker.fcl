@@ -1,0 +1,23 @@
+BEGIN_PROLOG
+
+UBXSecBenchmarker: {
+      module_type:  "UBXSecBenchmarker"
+      TrackLabel:   "pandoraNu::UBXSec"
+      PfpLabel:   "pandoraNu::UBXSec"
+      PfpAssnLabel:   "pandoraNu::UBXSec"
+      ClusterLabel: "pandoraNu::UBXSec"
+      HitAssnTruthLabel: "pandoraCosmicHitRemoval::UBXSec"
+      MCTruthLabel: "generator"
+      G4TruthLabel: "largeant"
+      ShowerLabel:  "pandoraNu::UBXSec"
+      CalorimetryLabel:  "pandoraNucali::UBXSec"
+      ShowerTruthLabel: "showerrecopandoraTruthMatch"
+      HitLabel: "pandoraCosmicHitRemoval::UBXSec"
+      IsVertexFitter: false
+      VertexFitterLabel: "vertexfitterpandoraNu"
+      TrackTruthLabel: "RecoTrueMatcher::UBXSec"
+      WriteHistograms: true
+      UBXSecInput: false
+}
+
+END_PROLOG

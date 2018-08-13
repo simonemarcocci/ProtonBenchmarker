@@ -1,15 +1,10 @@
 ////////////////////////////////////////////////////////////////////////
-// Class:       ProtonBenchmarker
+// Class:       UBXSecBenchmarker
 // Plugin Type: analyzer (art v2_05_00)
-// File:        ProtonBenchmarker_module.cc
+// File:        UBXSecBenchmarker_module.cc
 //
-// Generated at Tue Sep 19 17:11:42 2017 by Adam Lister using cetskelgen
+// Generated at Mon Aug 13 14:50:42 2018 by Simone Marcocci using cetskelgen
 // from cetlib version v1_21_00.
-//
-//
-// /** 
-// Benchmarker for BNB only events (no cosmics) 
-// */
 ////////////////////////////////////////////////////////////////////////
 
 // base includes
@@ -20,7 +15,6 @@
 #include "art/Framework/Principal/Run.h"
 #include "art/Framework/Principal/SubRun.h"
 #include "art/Framework/Services/Optional/TFileService.h"
-//#include "art/Framework/IO/Root/RootInputFile.h"
 #include "canvas/Utilities/InputTag.h"
 #include "fhiclcpp/ParameterSet.h"
 #include "messagefacility/MessageLogger/MessageLogger.h"
@@ -61,27 +55,27 @@
 
 //UBXSec includes
 #include "uboone/UBXSec/DataTypes/SelectionResult.h"
+#include "uboone/UBXSec/DataTypes/TPCObject.h"
+#include "uboone/UBXSec/DataTypes/MCGhost.h"
 
 #define isDebug 0
 
-#define isSingleParticle 0
-
 namespace recohelper {
-  class ProtonBenchmarker;
+  class UBXSecBenchmarker;
 }
 
 
-class recohelper::ProtonBenchmarker : public art::EDAnalyzer {
+class recohelper::UBXSecBenchmarker : public art::EDAnalyzer {
   public:
-    explicit ProtonBenchmarker(fhicl::ParameterSet const & p);
+    explicit UBXSecBenchmarker(fhicl::ParameterSet const & p);
     // The compiler-generated destructor is fine for non-base
     // classes without bare pointers or other resource use.
 
     // Plugins should not be copied or assigned.
-    ProtonBenchmarker(ProtonBenchmarker const &) = delete;
-    ProtonBenchmarker(ProtonBenchmarker &&) = delete;
-    ProtonBenchmarker & operator = (ProtonBenchmarker const &) = delete;
-    ProtonBenchmarker & operator = (ProtonBenchmarker &&) = delete;
+    UBXSecBenchmarker(UBXSecBenchmarker const &) = delete;
+    UBXSecBenchmarker(UBXSecBenchmarker &&) = delete;
+    UBXSecBenchmarker & operator = (UBXSecBenchmarker const &) = delete;
+    UBXSecBenchmarker & operator = (UBXSecBenchmarker &&) = delete;
 
     // Required functions.
     void analyze(art::Event const & e) override;
@@ -106,10 +100,8 @@ class recohelper::ProtonBenchmarker : public art::EDAnalyzer {
     std::string fHitLabel;
     std::string fMCTruthLabel;
     std::string fG4TruthLabel;
-    std::string fMCHitLabel;
     bool 	fWriteHistograms;
     bool	fIsUBXSec;
-
 
     pbutil::protonBenchmarkerUtility _pbutilInstance;
 
@@ -124,7 +116,7 @@ class recohelper::ProtonBenchmarker : public art::EDAnalyzer {
 };
 
 
-recohelper::ProtonBenchmarker::ProtonBenchmarker(fhicl::ParameterSet const & p)
+recohelper::UBXSecBenchmarker::UBXSecBenchmarker(fhicl::ParameterSet const & p)
   :
     EDAnalyzer(p)  // ,
     // More initializers here.
@@ -145,12 +137,11 @@ recohelper::ProtonBenchmarker::ProtonBenchmarker(fhicl::ParameterSet const & p)
   fShowerTruthLabel = p.get<std::string> ("ShowerTruthLabel");
   fClusterLabel = p.get<std::string> ("ClusterLabel");
   fHitLabel = p.get<std::string> ("HitLabel");
-  fMCHitLabel = p.get<std::string> ("MCHitLabel");
   fIsUBXSec = p.get<bool> ("UBXSecInput");
 
 }
 
-void recohelper::ProtonBenchmarker::beginJob()
+void recohelper::UBXSecBenchmarker::beginJob()
 {
 
 
@@ -164,107 +155,131 @@ void recohelper::ProtonBenchmarker::beginJob()
   histo_maker->Init_Hit(  hits_dir );
   }
 
-  //int bufsize    = 16000;
-  //int splitlevel = 99;
   // define branches
-  recoTree->Branch("stored", &event_store); //, bufsize, splitlevel);
+  recoTree->Branch("stored", &event_store);
 
   n_events = 0;
+
+  if ( !fIsUBXSec ) 
+	  throw cet::exception("Configuration") << "this module must be used on UBXSec output files.";
    
 }
 
-void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
+void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 {
-  if (e.isRealData() == true) return;
   
-  //auto const* theDetector = lar::providerFrom<detinfo::DetectorPropertiesService>();
+  if (e.isRealData() == true) return;
   auto const* SCE = lar::providerFrom<spacecharge::SpaceChargeService>();  
   bool space_charge = true;
 
   event_store->fEvent  = e.id().event();
   event_store->fRun    = e.run();
   event_store->fSubRun = e.subRun();
-
-
-  // get handles to objects of interest
-  art::ValidHandle< std::vector<recob::Track> > trackHandle = e.getValidHandle< std::vector<recob::Track> > (fTrackLabel);
-  std::vector< art::Ptr<recob::Track> > trackList;
-  art::fill_ptr_vector(trackList, trackHandle); 
-
-  art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromTracks(trackHandle, e, fTrackTruthLabel);
+ 
+  art::Handle<std::vector<ubana::SelectionResult> > selection_h;
+  e.getByLabel("UBXSec", selection_h);
+  if(!selection_h.isValid()){
+	    mf::LogError(__PRETTY_FUNCTION__) << "SelectionResult product not found." << std::endl;
+	    throw cet::exception("Configuration");
+  }
+  std::vector<art::Ptr<ubana::SelectionResult>> selection_v;
+  art::fill_ptr_vector(selection_v, selection_h);
   
-  art::FindManyP<anab::Calorimetry> caloFromTracks(trackHandle, e, fCalorimetryLabel);
+  // The selection result vector will always only contain one entry (at least 1 neutrino per event)
+  if ( !selection_v.at(0)->GetSelectionStatus() ) return; //the event is not selected
+ 
+  //else the event is selected!
+  // Get the selected TPCObject
+  art::FindManyP<ubana::TPCObject> tpcobject_from_selection(selection_h, e, "UBXSec"); 
+  art::Ptr<ubana::TPCObject> tpcobj_candidate = tpcobject_from_selection.at(0).at(0);
+  
+  // Get the TPCObject handler
+  art::Handle<std::vector<ubana::TPCObject>> tpcobj_h;
+  e.getByLabel("TPCObjectMaker", tpcobj_h);
+  
+  // Get the tracks associated to the selected TPCObject
+  art::FindManyP<recob::Track> tracks_from_tpcobject(tpcobj_h, e, "TPCObjectMaker");
+  std::vector<art::Ptr<recob::Track>> trackList = tracks_from_tpcobject.at(tpcobj_candidate.key());
+ 
+  //associations to tracks
+  art::FindManyP<anab::Calorimetry> caloFromTracks(trackList, e, fCalorimetryLabel);
+  art::FindManyP<recob::Hit> hitsFromTracks( trackList, e, fTrackLabel);
+  
+  // Get the vertex associated with the TPCObject
+  art::FindManyP<recob::Vertex> vertices_from_tpcobject(tpcobj_h, e, "TPCObjectMaker");
+  std::vector<art::Ptr<recob::Vertex>> vertices = vertices_from_tpcobject.at(tpcobj_candidate.key());
+  
+  // Get the PFParticles associated to the selected TPCObject
+  art::FindManyP<recob::PFParticle> pfps_from_tpcobject(tpcobj_h, e, "TPCObjectMaker");
+  std::vector<art::Ptr<recob::PFParticle>> pfpList = pfps_from_tpcobject.at(tpcobj_candidate.key());
+  
+  // Get the Showers associated to the selected TPCObject
+  art::FindManyP<recob::Shower> showers_from_tpcobject(tpcobj_h, e, "TPCObjectMaker");
+  std::vector<art::Ptr<recob::Shower>> showerList = showers_from_tpcobject.at(tpcobj_candidate.key());
+ 
+  //get the ghost
+  art::Handle<std::vector<ubana::MCGhost>> ghost_h;
+  e.getByLabel(fTrackTruthLabel, ghost_h);
+  std::vector<art::Ptr<ubana::MCGhost>> ghostList;
+  art::fill_ptr_vector(ghostList, ghost_h);
+  
+  
+  //neutrino vertex candidate
+  //art::Ptr<recob::Vertex> neutrino_candidate_vertex = vertices.at(0);
+  
+  // The longest track in "tracks" is the muon candidate
+  // "neutrino_candidate_vertex" is the candidate neutrino vertex
 
-  art::ValidHandle< std::vector<recob::Shower> > showerHandle =
-    e.getValidHandle< std::vector<recob::Shower> >(fShowerLabel);
-  std::vector< art::Ptr<recob::Shower> >  showerList;  
-  art::fill_ptr_vector(showerList, showerHandle); 
-
-  art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromShowers(showerHandle, e, fShowerTruthLabel);
-
+  //MCparticle list
   art::Handle< std::vector<simb::MCParticle> > mcParticleHandle; 
   std::vector< art::Ptr<simb::MCParticle> > mcList;
   if (e.getByLabel( fG4TruthLabel, mcParticleHandle))
     art::fill_ptr_vector(mcList, mcParticleHandle); 
-
+  //MCTruth
   art::Handle< std::vector<simb::MCTruth> > mcTruthHandle; 
   std::vector< art::Ptr<simb::MCTruth> > mcTruth;
   if (e.getByLabel( fMCTruthLabel, mcTruthHandle))
     art::fill_ptr_vector(mcTruth, mcTruthHandle); 
  
+  //get MCparticles associated to MCtruth
+  art::FindManyP<simb::MCParticle> MCpFromMCtruth( mcTruth , e, fG4TruthLabel );
 
-  // cluster/hit handles
+  //clusters
   art::ValidHandle< std::vector< recob::Cluster > > clusterHandle = 
     e.getValidHandle< std::vector< recob::Cluster > >(fClusterLabel);
   std::vector< art::Ptr<recob::Cluster> > clusterList;
   art::fill_ptr_vector( clusterList, clusterHandle);
 
-  art::FindManyP<recob::Hit> hitsFromClusters(clusterHandle, e, fClusterLabel);
-  
+  //hits
   art::ValidHandle< std::vector< recob::Hit > > hitHandle = 
     e.getValidHandle< std::vector< recob::Hit > >(fHitLabel);
   std::vector< art::Ptr<recob::Hit> > hitList;
   art::fill_ptr_vector( hitList, hitHandle);
+  
+  //hit-cluster assn
+  art::FindManyP<recob::Hit> hitsFromClusters(clusterHandle, e, fClusterLabel);
 
-  art::ValidHandle< std::vector< recob::PFParticle > > pfpHandle = 
-    e.getValidHandle< std::vector< recob::PFParticle > >(fPfpLabel);
-  std::vector< art::Ptr<recob::PFParticle> > pfpList;
-  art::fill_ptr_vector( pfpList, pfpHandle);
-
-  art::FindManyP<recob::Hit> hitsFromTracks( trackHandle, e, fTrackLabel);
   art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData> MCPfromhits( hitHandle, e, fHitAssnTruthLabel);
   art::FindManyP<recob::Hit, anab::BackTrackerHitMatchingData> hitsFromMCP( mcParticleHandle, e, fHitAssnTruthLabel);
   
-  art::Handle< std::vector<sim::MCHitCollection> > mcHitHandle; 
-  std::vector< art::Ptr<sim::MCHitCollection> > mcHitList;
-  if (e.getByLabel( fMCHitLabel, mcHitHandle) )
-    art::fill_ptr_vector(mcHitList, mcHitHandle); 
- 
-  art::Handle< std::vector<sim::SimChannel> > simChannelHandle; 
-  std::vector< art::Ptr<sim::SimChannel> > simChannelList;
-  if (e.getByLabel( fG4TruthLabel, simChannelHandle) )
-    art::fill_ptr_vector(simChannelList, simChannelHandle); 
- 
-  //---------------------------------
-  // MCParticles
-  //---------------------------------
-
-  //get MCparticles associated to MCtruth
-  art::FindManyP<simb::MCParticle> MCpFromMCtruth( mcTruth , e, fG4TruthLabel );
-
   //vertex stuff
-  art::FindManyP<recob::Vertex> vertexFromPfp(pfpHandle, e, fPfpLabel);
-  art::FindManyP<recob::Track> trackFromPfp(pfpHandle, e, fPfpAssnLabel);
+  art::FindManyP<recob::Vertex> vertexFromPfp(pfpList, e, fPfpLabel);
+  art::FindManyP<recob::Track> trackFromPfp(pfpList, e, fPfpAssnLabel);
   
-//hits associations
+  //hits associations
   art::FindManyP<recob::Cluster> clustersFromHits(hitHandle, e, fClusterLabel);
   art::FindManyP<recob::PFParticle> pfpFromCluster(clusterHandle, e, fClusterLabel);
-  art::FindManyP<recob::PFParticle> pfpFromTrack(trackHandle, e, fPfpAssnLabel);
+  art::FindManyP<recob::PFParticle> pfpFromTrack(trackList, e, fPfpAssnLabel);
+  art::FindManyP<recob::PFParticle> pfpFromShower(showerList, e, fPfpAssnLabel);
   art::FindManyP<recob::SpacePoint> spacepointFromHits( hitHandle, e, fTrackLabel );
 
 
-
-
+  //PROBLEMATIC
+  //art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromTracks(trackHandle, e, fTrackTruthLabel);
+  //art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromShowers(showerHandle, e, fShowerTruthLabel);
+  //need to go from track/shower to PFP to ghost to MCP
+  art::FindManyP< ubana::MCGhost > ghost_from_pfp( pfpList, e, fTrackTruthLabel );
+  art::FindManyP< simb::MCParticle > mcp_from_ghost( ghostList, e, fTrackTruthLabel );
 
 
   //loop on all MC truth frames (mostly 1 per event)
@@ -273,7 +288,6 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   n_events++;
   event_store->ClearVectors();
 
-#if isSingleParticle == 0 
   //check that the neutrino is in the active volume
   const simb::MCNeutrino thisNeutrino = mcTruth[n_truth]->GetNeutrino();
   const simb::MCParticle thisLepton = thisNeutrino.Lepton();
@@ -295,7 +309,6 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   event_store->fneutrino_y = thisNeutrino.Nu().Position().Y() + yOffset;
   event_store->fneutrino_z = thisNeutrino.Nu().Position().Z() + zOffset;
 
-#endif
   // first loop muons to find true neutrino induced muon (NIM)
   double muon_p = 0;
   double muon_px = 0;
@@ -463,9 +476,15 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   //int all_hits_tracks = 0;
   // loop tracks and do truth matching 
   for (auto const& thisTrack : trackList) {
-    
-    std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromTracks.at(track_id_counter);
-    std::vector< art::Ptr<anab::Calorimetry> > calos = caloFromTracks.at(track_id_counter);
+   
+    std::vector< art::Ptr<recob::PFParticle> > pfps = pfpFromTrack.at ( thisTrack.key() );
+    if ( pfps.size() > 1 )
+	    throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1 or 0.";
+    std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at (pfps.at(0).key() );
+    if ( ghosts.size() != 1 )
+	    throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1.";
+    std::vector< art::Ptr<simb::MCParticle> > mcps = mcp_from_ghost.at( ghosts.at(0).key() );
+    std::vector< art::Ptr<anab::Calorimetry> > calos = caloFromTracks.at( thisTrack.key() );
 
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same track!" << std::endl;
     if (calos.size() != 3 ) mf::LogWarning(__FUNCTION__) << "Warning !!! Calorimetry info size " << calos.size() << " != 3 associated to tracks!" << std::endl;
@@ -551,8 +570,8 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	event_store->fmuon_range = calos.at( geo::kCollection )->Range();
 	}
     
-	auto thisMcpCleanliness = mcpsFromTracks.data(track_id_counter).at(0)->cleanliness;
-	auto thisMcpCompleteness = mcpsFromTracks.data(track_id_counter).at(0)->completeness;
+	auto thisMcpCleanliness = 0;//mcpsFromTracks.data(track_id_counter).at(0)->cleanliness; //not supported here
+	auto thisMcpCompleteness = 0;//mcpsFromTracks.data(track_id_counter).at(0)->completeness; //not supported here
 	event_store->fpurity[pos] = thisMcpCleanliness;
 	event_store->fcompleteness[pos] = thisMcpCompleteness;
 
@@ -590,11 +609,16 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   // loop tracks and do truth matching 
   for (auto const& thisShower : showerList) {
     
-    std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromShowers.at(shower_id_counter);
+    std::vector< art::Ptr<recob::PFParticle> > pfp_shower = pfpFromShower.at ( thisShower.key() );
+    if ( pfp_shower.size() > 1 )
+	throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1 or 0.";
+    std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at (pfp_shower.at(0).key() );
+    if ( ghosts.size() != 1 )
+ 	throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1.";
+    std::vector< art::Ptr<simb::MCParticle> > mcps = mcp_from_ghost.at( ghosts.at(0).key() );
 
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same shower!" << std::endl;
     if ( previous_shower_id >= thisShower->ID() ) mf::LogError(__FUNCTION__) << "ERROR! The Shower ID's are not in ascending order! " << std::endl;
-
 	
     for (auto const& thisMcp : mcps){
     
@@ -689,7 +713,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   //----------------------------
  
   if (fIsVertexFitter) {
-  art::FindManyP<recob::Vertex> vertexfitterFromPfp(pfpHandle, e, fVertexFitterLabel);
+  art::FindManyP<recob::Vertex> vertexfitterFromPfp(pfpList, e, fVertexFitterLabel);
   
   //look for neutrino pfp
   neutrino_set = false;
@@ -859,17 +883,25 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 			
 			//associate the pfp to the tracks
 			for ( auto const& track : trackList) {
-			std::vector< art::Ptr <recob::PFParticle> > pfp_track = pfpFromTrack.at( &track - &trackList[0] );
-			std::vector< art::Ptr <simb::MCParticle> > mcp_track = mcpsFromTracks.at( &track - &trackList[0] );
-			unsigned mm = 0;
-			float purityy = -1;
-			for ( unsigned nn=0; nn<mcp_track.size(); nn++ ) { //select highest purity
-				if ( mcpsFromTracks.data( &track - &trackList[0] ).at( nn )->cleanliness > purityy ) {
-					purityy = mcpsFromTracks.data( &track - &trackList[0] ).at( nn )->cleanliness;
-					mm = nn;
-				}
-				//std::cout << "SONO QUA 2" << std::endl;
-			}
+			//std::vector< art::Ptr <recob::PFParticle> > pfp_track = pfpFromTrack.at( &track - &trackList[0] );
+    			std::vector< art::Ptr<recob::PFParticle> > pfp_track = pfpFromTrack.at ( track.key() );
+    			if ( pfp_track.size() != 1 )
+	    			throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1.";
+    			std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at (pfp_track.at(0).key() );
+    			if ( ghosts.size() != 1 )
+	    			throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1.";
+    			std::vector< art::Ptr<simb::MCParticle> > mcp_track = mcp_from_ghost.at( ghosts.at(0).key() );
+
+			//unsupported here
+			//unsigned mm = 0;
+			//float purityy = -1;
+			//for ( unsigned nn=0; nn<mcp_track.size(); nn++ ) { //select highest purity
+			//	if ( mcpsFromTracks.data( &track - &trackList[0] ).at( nn )->cleanliness > purityy ) {
+			//		purityy = mcpsFromTracks.data( &track - &trackList[0] ).at( nn )->cleanliness;
+			//		mm = nn;
+			//	}
+			//	//std::cout << "SONO QUA 2" << std::endl;
+			//}
 			if (pfp_track.size()==0) std::cout << ">>>>>>>>SHOWER!!!!!!!!!!!!!!" << std::endl;
 			if (pfp_track.size()!=1) std::cout << "MORE THAN 1 PFP per track!" << std::endl;
 			if ( pfp_track[0]->Self() != pfp_id ) continue;
@@ -885,15 +917,15 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 				event_store->fclustered_matched[mcp_index] = event_store->fclustered_matched[mcp_index] + 1;
 		                event_store->fclustered_matched_charge[mcp_index].push_back( hit->Integral() );
 			} else { //mismatch
-				if ( event_store->fpdg[mcp_index] == 13 && mcp_track[mm]->PdgCode()==13) {
-					std::cout << "Broken track!" << std::endl;
+				//if ( event_store->fpdg[mcp_index] == 13 && mcp_track[mm]->PdgCode()==13) {
+				//	std::cout << "Broken track!" << std::endl;
 					//std::cout << "trackid1 " << track->ID() << " trackid2 " << freco_trackid[mcp_index] << std::endl; 
 					//std::cout << "mcp_index " << mcp_index << " muon_index " << muon_pos << std::endl; 
 					//std::cout << "numero track " << &track - &trackList[0] << std::endl;
-				} else if (event_store->fpdg[mcp_index] == 2212 && event_store->fp0[mcp_index] < 0.2) {
+			/*	} else*/ if (event_store->fpdg[mcp_index] == 2212 && event_store->fp0[mcp_index] < 0.2) {
 					std::cout << "Low proton!!!" << std:: endl;
 				} else {
-				      event_store->fhit_mismatch_pdg[mcp_index].push_back ( mcp_track[mm]->PdgCode() );
+				      //event_store->fhit_mismatch_pdg[mcp_index].push_back ( mcp_track[mm]->PdgCode() );
 				      event_store->fclustered_mismatched[mcp_index] = event_store->fclustered_mismatched[mcp_index] + 1;
 		                      event_store->fclustered_mismatched_charge[mcp_index].push_back( hit->Integral() );
 				}
@@ -921,7 +953,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 }
 
 
-void recohelper::ProtonBenchmarker::endJob()
+void recohelper::UBXSecBenchmarker::endJob()
 {
 
   if (fWriteHistograms) {
@@ -931,4 +963,4 @@ void recohelper::ProtonBenchmarker::endJob()
 
 }
 
-DEFINE_ART_MODULE(recohelper::ProtonBenchmarker)
+DEFINE_ART_MODULE(recohelper::UBXSecBenchmarker)

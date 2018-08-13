@@ -18,6 +18,7 @@ ProtonBenchmarker: {
       IsVertexFitter: false
       VertexFitterLabel: "vertexfitterpandoraNu"
       WriteHistograms: true
+      UBXSecInput: false
 }
 
 END_PROLOG

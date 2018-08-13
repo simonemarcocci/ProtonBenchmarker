@@ -10,6 +10,7 @@ art_make( BASENAME_ONLY
           LIB_LIBRARIES
             uboonecode_uboone_ProtonBenchmarker_Algos
 	    uboonecode_uboone_ProtonBenchmarker_Datatypes
+	    uboonecode_uboone_UBXSec_DataTypes
 	    ${PANDORASDK}
 	    ${PANDORAMONITORING}
   
@@ -18,6 +19,7 @@ art_make( BASENAME_ONLY
 	    LArPandoraContent
             uboonecode_uboone_ProtonBenchmarker_Algos
 	    uboonecode_uboone_ProtonBenchmarker_Datatypes
+	    uboonecode_uboone_UBXSec_DataTypes
             larcore_Geometry_Geometry_service
             larsim_Simulation nutools_ParticleNavigation lardataobj_Simulation
 	    larsim_MCCheater_BackTracker_service
