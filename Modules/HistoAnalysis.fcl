@@ -1,0 +1,10 @@
+BEGIN_PROLOG
+
+HistoAnalysis: {
+      module_type:  "HistoAnalysis"
+      FileName: "histogram.root"
+      DirName: "pandoraNu"
+      TreeName: "recotree"
+}
+
+END_PROLOG

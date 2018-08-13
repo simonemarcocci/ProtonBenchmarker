@@ -567,7 +567,7 @@ void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos 
 		hmuon_pos_res_lowprotons->Fill( sqrt( pow( event_store->freco_startx[muon_pos]- event_store->fstart_x[muon_pos] ,2) + pow( event_store->freco_starty[muon_pos]- event_store->fstart_y[muon_pos] ,2) + pow( event_store->freco_startz[muon_pos]- event_store->fstart_z[muon_pos] ,2) ) );
 	}
   
-if (count_not_tracked) {
+if (count_not_tracked && isVerbose) {
 	  std::cout << ">>>>NOT TRACKED!" << std::endl;
 	  std::cout << "Number of not tracked " << count_not_tracked << ", number of tracked " << count_tracked << std::endl;
 	  std::cout<< "Run: " << event_store->fRun << " SubRun: " << event_store->fSubRun << " Event: " << event_store->fEvent << std::endl;

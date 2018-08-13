@@ -29,7 +29,7 @@ namespace reco_histo{
 
     public:
 	
-	    HistoMaker(){
+	    HistoMaker( bool isVerbose = false ){
 		    is_init = false;
 		    is_init_hit = false;
     	 	    low_edge = 350;
@@ -56,6 +56,7 @@ namespace reco_histo{
 
    private:
 
+   bool isVerbose;
    bool is_init;
    bool is_init_hit;
    //a few parameters for histo plotting
