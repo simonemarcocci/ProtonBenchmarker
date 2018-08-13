@@ -17,7 +17,7 @@ UBXSecBenchmarker: {
       VertexFitterLabel: "vertexfitterpandoraNu"
       TrackTruthLabel: "RecoTrueMatcher::UBXSec"
       WriteHistograms: true
-      UBXSecInput: false
+      UBXSecInput: true
 }
 
 END_PROLOG
