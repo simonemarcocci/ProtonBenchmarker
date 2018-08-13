@@ -50,7 +50,7 @@ namespace reco_histo{
 
 	    void Fill_Truth_Histos( StoredEvent* );
 	    void Fill_Hit_Histos( StoredEvent* );
-	    void Fill_Analysis_Histos( StoredEvent*, int& );
+	    void Fill_Analysis_Histos( StoredEvent*, int&, bool );
 	    void FillCumulativeHistograms();
 	    void ScalePlots(int);
 

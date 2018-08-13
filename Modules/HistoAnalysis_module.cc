@@ -111,7 +111,7 @@ void HistoAnalysis::analyze(art::Event const & e)
 				
    		histo_maker->Fill_Truth_Histos( event_store );
   		int muon_pos;
-  		histo_maker->Fill_Analysis_Histos( event_store, muon_pos ); //plots tracking and vertexing information
+  		histo_maker->Fill_Analysis_Histos( event_store, muon_pos, true ); //plots tracking and vertexing information
   		histo_maker->Fill_Hit_Histos( event_store );
 
 	}

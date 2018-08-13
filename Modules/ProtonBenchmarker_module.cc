@@ -99,6 +99,7 @@ class recohelper::ProtonBenchmarker : public art::EDAnalyzer {
     std::string fMCTruthLabel;
     std::string fG4TruthLabel;
     std::string fMCHitLabel;
+    bool 	fWriteHistograms;
 
 
     pbutil::protonBenchmarkerUtility _pbutilInstance;
@@ -129,6 +130,7 @@ recohelper::ProtonBenchmarker::ProtonBenchmarker(fhicl::ParameterSet const & p)
   fShowerLabel = p.get<std::string> ("ShowerLabel");
   fVertexFitterLabel = p.get<std::string> ("VertexFitterLabel");
   fIsVertexFitter = p.get<bool> ("IsVertexFitter");
+  fWriteHistograms = p.get<bool> ("WriteHistograms");
   fMCTruthLabel = p.get<std::string> ("MCTruthLabel");
   fG4TruthLabel = p.get<std::string> ("G4TruthLabel");
   fShowerTruthLabel = p.get<std::string> ("ShowerTruthLabel");
@@ -146,9 +148,11 @@ void recohelper::ProtonBenchmarker::beginJob()
   recoTree = tfs->make<TTree>("recotree", "recotree");
   event_store = new StoredEvent();
   histo_maker = new reco_histo::HistoMaker();
+  if ( fWriteHistograms ) {
   histo_maker->Init( tfs );
   art::TFileDirectory hits_dir = tfs->mkdir("hits_dir");
   histo_maker->Init_Hit(  hits_dir );
+  }
 
   //int bufsize    = 16000;
   //int splitlevel = 99;
@@ -421,6 +425,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	}
    }
 
+   if ( fWriteHistograms ) 
    histo_maker->Fill_Truth_Histos( event_store );
 
   //----------------------------
@@ -712,7 +717,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   //std::cout << "NEUTRINO " <<  fnu_reco_x << " " << fnu_reco_y << " " << fnu_reco_z << std::endl;
 
   int muon_pos;
-  histo_maker->Fill_Analysis_Histos( event_store, muon_pos ); //plots tracking and vertexing information
+  histo_maker->Fill_Analysis_Histos( event_store, muon_pos, fWriteHistograms); //plots tracking and vertexing information
 
   art::FindManyP<recob::Cluster> clustersFromHits(hitHandle, e, fClusterLabel);
   art::FindManyP<recob::PFParticle> pfpFromCluster(clusterHandle, e, fClusterLabel);
@@ -890,6 +895,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   } // loop on hits
   
   //make hit plots
+  if (fWriteHistograms)
   histo_maker->Fill_Hit_Histos( event_store );
 
   } // good muon
@@ -904,8 +910,10 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 void recohelper::ProtonBenchmarker::endJob()
 {
 
+  if (fWriteHistograms) {
   histo_maker->ScalePlots( n_events );
   histo_maker->FillCumulativeHistograms();
+  }
 
 }
 

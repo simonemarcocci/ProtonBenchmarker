@@ -315,12 +315,10 @@ void HistoMaker::Fill_Truth_Histos( StoredEvent* event_store ) {
 }
 
 
-void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos ) {
+void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos, bool write_histos = true ) {
   
-  if (!is_init) {
-	  std::cout << "Histo Maker NOT initialized" << std::endl;
-	  throw cet::exception("Configuration");
-  }
+  if (!is_init && write_histos)
+	  throw cet::exception("Configuration") << "Histo Maker NOT initialized";
   
     muon_pos = -1;
     fmuon_pos = muon_pos;
@@ -333,13 +331,19 @@ void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos 
     bool lowmomentum_p = false;
     for (unsigned i = 0; i < event_store->fpdg.size(); i++) {
 	    if ( event_store->fpdg[i] == 13 ) { //ismuon
+	    if (write_histos) {
 	    hmuon_length_all->Fill( event_store->flength[i] );
 	    hmuon_spectrum_all->Fill( event_store->fkinE[i] );
+	    }
 	    if ( event_store->fis_tracked[i] &&  event_store->fmuon_dqdx.size() != 0 ) { //want that the muon is well matched and w/ dqdx info
 		muon_pos = i; 
+		reco_muon = true;
+		if ( sqrt( pow( event_store->freco_startx[i]- event_store->fstart_x[i] ,2) + pow( event_store->freco_starty[i]- event_store->fstart_y[i] ,2) + pow( event_store->freco_startz[i]- event_store->fstart_z[i] ,2) ) > 50 ) 
+			reco_muon = false; //skip these events, might have direction flipped
+	    	
+	    	if (write_histos) {
 	    	hmuon_length->Fill( event_store->flength[i] );
 	    	hmuon_spectrum->Fill( event_store->fkinE[i] );
-		reco_muon = true;
 		hmuon_pos_res->Fill( sqrt( pow( event_store->freco_startx[i]- event_store->fstart_x[i] ,2) + pow( event_store->freco_starty[i]- event_store->fstart_y[i] ,2) + pow( event_store->freco_startz[i]- event_store->fstart_z[i] ,2) ));
 		float res = std::min ( sqrt( pow(event_store->freco_vertex_x[i] - event_store->fstart_x[i],2) + pow(event_store->freco_vertex_y[i] - event_store->fstart_y[i],2) + pow(event_store->freco_vertex_z[i] - event_store->fstart_z[i],2)) ,
 					sqrt( pow(event_store->freco_vertex_x[i] - event_store->fend_x[i],2) + pow(event_store->freco_vertex_y[i] - event_store->fend_y[i],2) + pow(event_store->freco_vertex_z[i] - event_store->fend_z[i],2)) );
@@ -348,17 +352,19 @@ void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos 
 					sqrt( pow(event_store->freco_vertexfitter_x[i] - event_store->fend_x[i],2) + pow(event_store->freco_vertexfitter_y[i] - event_store->fend_y[i],2) + pow(event_store->freco_vertexfitter_z[i] - event_store->fend_z[i],2)) );
 		h_vertexfitter_resolution_muon->Fill( res_fitter );
 		h_vertexfitter_chi2ndf_muon->Fill( event_store->freco_vertexfitter_chi2ndf[i] );
-		if ( sqrt( pow( event_store->freco_startx[i]- event_store->fstart_x[i] ,2) + pow( event_store->freco_starty[i]- event_store->fstart_y[i] ,2) + pow( event_store->freco_startz[i]- event_store->fstart_z[i] ,2) ) > 50 ) {
-			reco_muon = false; //skip these events, might have direction flipped
-	    	}
+		}
     		}
-	    } //record info on the muon
+	    } 
+	    
+	    //record info on the muon
 	    if ( event_store->fpdg[i] == 211 || event_store->fpdg[i] == -211 || event_store->fpdg[i] == 111 ) is_pion=true; //record if there are any pions
 	    if (  event_store->fpdg[i] == 2212 && event_store->fp0[i] <= 0.2 ) lowmomentum_p = true;
+	    if (write_histos) {
 	    if (  event_store->fpdg[i] == 2212 && event_store->fp0[i] >= 0.2 ) hproton_theta_mu->Fill(event_store->fcostheta_muon[i]);
+	    }
     }
     
-    if ( reco_muon == false ) return; //select events with a reco muon
+    if ( reco_muon == false || !write_histos ) return; //select events with a reco muon or quit if you don't want to write histograms
     
     //check if the neutrino reco'ed vertex is there 
     if ( !(std::abs(event_store->fnu_reco_x+1)<DBL_EPSILON && std::abs(event_store->fnu_reco_y+1)<DBL_EPSILON && std::abs(event_store->fnu_reco_z+1)<DBL_EPSILON) ) 
