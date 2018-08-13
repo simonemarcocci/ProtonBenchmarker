@@ -21,7 +21,7 @@ physics:
   analyzers:
   {
 
-    ubxsecbenchmarker: @local::ProtonBenchmarker
+    ubxsecbenchmarker: @local::UBXSecBenchmarker
 
   }
 
