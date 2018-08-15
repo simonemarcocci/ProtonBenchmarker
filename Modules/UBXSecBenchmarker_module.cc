@@ -201,7 +201,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   art::FindManyP<recob::Track> tracks_from_tpcobject(tpcobj_h, e, "TPCObjectMaker");
   std::vector<art::Ptr<recob::Track>> trackList = tracks_from_tpcobject.at(tpcobj_candidate.key());
  
-  //associations to tracks
+  //associations to tracks //FIXME
   art::FindManyP<anab::Calorimetry> caloFromTracks(trackList, e, fCalorimetryLabel);
   art::FindManyP<recob::Hit> hitsFromTracks( trackList, e, fTrackLabel);
   
@@ -266,25 +266,46 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   art::FindManyP<recob::Vertex> vertexFromPfp(pfpList, e, fPfpLabel);
   art::FindManyP<recob::Track> trackFromPfp(pfpList, e, fPfpAssnLabel);
   
+  art::Handle<std::vector<recob::Track> > track_handle;
+  e.getByLabel(fTrackLabel, track_handle);
+  std::vector< art::Ptr<recob::Track> > all_tracks;
+  art::fill_ptr_vector( all_tracks, track_handle);
+  
+  art::Handle<std::vector<recob::PFParticle> > pfp_handle;
+  e.getByLabel(fPfpLabel, pfp_handle);
+  art::Handle<std::vector<recob::Shower> > shower_handle;
+  e.getByLabel(fShowerLabel, shower_handle);
+
   //hits associations
   art::FindManyP<recob::Cluster> clustersFromHits(hitHandle, e, fClusterLabel);
   art::FindManyP<recob::PFParticle> pfpFromCluster(clusterHandle, e, fClusterLabel);
-  art::FindManyP<recob::PFParticle> pfpFromTrack(trackList, e, fPfpAssnLabel);
-  art::FindManyP<recob::PFParticle> pfpFromShower(showerList, e, fPfpAssnLabel);
+  //art::FindManyP<recob::PFParticle> pfpFromTrack( track_handle, e, fPfpAssnLabel);
+  art::FindManyP<recob::PFParticle> pfpFromTrack( trackList, e, fPfpAssnLabel); 
+  art::FindManyP<recob::PFParticle> pfpFromShower( showerList, e, fPfpAssnLabel);
   art::FindManyP<recob::SpacePoint> spacepointFromHits( hitHandle, e, fTrackLabel );
+  
+  //art::FindManyP<anab::Calorimetry> caloFromTracks(track_handle, e, fCalorimetryLabel);
+  //art::FindManyP<recob::Hit> hitsFromTracks( track_handle, e, fTrackLabel);
 
 
   //PROBLEMATIC
   //art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromTracks(trackHandle, e, fTrackTruthLabel);
   //art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromShowers(showerHandle, e, fShowerTruthLabel);
   //need to go from track/shower to PFP to ghost to MCP
-  art::FindManyP< ubana::MCGhost > ghost_from_pfp( pfpList, e, fTrackTruthLabel );
-  art::FindManyP< simb::MCParticle > mcp_from_ghost( ghostList, e, fTrackTruthLabel );
+  art::FindManyP< ubana::MCGhost > ghost_from_pfp( pfp_handle, e, fTrackTruthLabel );
+  art::FindManyP< simb::MCParticle > mcp_from_ghost( ghost_h, e, fTrackTruthLabel );
 
 
   //loop on all MC truth frames (mostly 1 per event)
   for ( unsigned n_truth = 0; n_truth < mcTruth.size(); n_truth++ ) {
 	  //std::cout << ">>>>>>>>>>>>>>>>>EVENT" << std::endl; 
+   
+  if (mcTruth[n_truth]->Origin() != simb::kBeamNeutrino) {
+	  std::cout << "Cosmics!" << std::endl;
+	  continue;
+  } else
+	  std::cout << "Neutrinos!" << std::endl;
+
   n_events++;
   event_store->ClearVectors();
 
@@ -340,7 +361,8 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
  
   //now other MC particles
   for (unsigned i = 0; i < MCpFromMCtruth.at(n_truth).size(); i++){
-    const art::Ptr< simb::MCParticle >& thisMcp = MCpFromMCtruth.at(n_truth).at(i);
+  //for ( auto const& thisMcp : mcList ){
+  const art::Ptr< simb::MCParticle >& thisMcp = MCpFromMCtruth.at(n_truth).at(i);
     
     //in case of NC, the neutrino is kept and thus we should drop it
     //if it's an electron, check if it's a Michel. If yes, keep it.
@@ -351,6 +373,8 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
     if ( (std::abs(thisMcp->PdgCode()) == 11 && thisMcp->Mother() == muon_id && std::abs(thisMcp->Position().X()-muon_endx) < DBL_EPSILON &&
 		    std::abs(thisMcp->Position().Y()-muon_endy) < DBL_EPSILON && std::abs(thisMcp->Position().Z()-muon_endz) < DBL_EPSILON ) )
 	    std::cout << ">>>>>>>>>>>>>>>>>FOUND A MICHEL!!!!!" << std::endl;
+    
+    if ( !(thisMcp->StatusCode()==1 && thisMcp->Mother()==0 && thisMcp->Process() == "primary" && _pbutilInstance.isInTPC(thisMcp) == true ) ) continue;
 
 #if isDebug == 1
       std::cout << "---- MCParticle Information ----"
@@ -360,6 +384,10 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
         << "\nStatusCode : " << thisMcp->StatusCode()
         << "\nMother Pdg : " << thisMcp->Mother()
         << "\nPx, Py, Pz : " << thisMcp->Px() << ", " << thisMcp->Py() << ", " << thisMcp->Pz()
+        << "\nstart x, y, z : " << thisMcp->Position().X() << ", " << thisMcp->Position().Y() << ", " << thisMcp->Position().Z()
+        << "\nend x, y, z : " << thisMcp->EndPosition().X() << ", " << thisMcp->EndPosition().Y() << ", " << thisMcp->EndPosition().Z()
+        << "\nObject Key  : " << thisMcp.key() 
+	<< "\nNeutrino Vertex: " << thisNeutrino.Nu().Position().X() <<", "<< thisNeutrino.Nu().Position().Y() << ", " << thisNeutrino.Nu().Position().Z()
         << std::endl;
 #endif
 
@@ -394,14 +422,13 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	event_store->fend_x.push_back ( thisMcp->EndPosition().X() + xOffset );
 	event_store->fend_y.push_back ( thisMcp->EndPosition().Y() + yOffset );
 	event_store->fend_z.push_back ( thisMcp->EndPosition().Z() + zOffset );
-	event_store->fmother_id.push_back ( thisMcp->Mother() );
 	event_store->fpdg.push_back( thisMcp->PdgCode() );	
 	event_store->fg4_id.push_back(thisMcp->TrackId());
 	event_store->fp0.push_back( thisMcp->Momentum().Rho());
 	event_store->fp0x.push_back( thisMcp->Momentum().X() );
 	event_store->fp0y.push_back( thisMcp->Momentum().Y() );
 	event_store->fp0z.push_back( thisMcp->Momentum().Z() );
-	
+
 	//loop on other tracked_particles and decide if this is the leading based on initial kinetic energy. This must be done before filling the kinE vector for the current particle!
 	bool is_leading = true;
 	float current_kinE = thisMcp->E() - thisMcp->Mass() ;
@@ -477,16 +504,22 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   // loop tracks and do truth matching 
   for (auto const& thisTrack : trackList) {
    
-    std::vector< art::Ptr<recob::PFParticle> > pfps = pfpFromTrack.at ( thisTrack.key() );
-    if ( pfps.size() > 1 )
+   std::vector< art::Ptr<recob::PFParticle> > pfps = pfpFromTrack.at ( &thisTrack - &trackList[0] );
+    if ( pfps.size() != 1 )
 	    throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1 or 0.";
-    std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at (pfps.at(0).key() );
+    //std::cout << "SIZE GHOST_FROM_PFP " << ghost_from_pfp.size() << " key " << pfps.at(0).key() << " track # " << &thisTrack - &trackList[0] << std::endl;
+    std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at ( pfps.at(0).key() );
+    if ( ghosts.size() == 0 ) {
+	    std::cout << "The number of ghosts is zero for a track. Warning!!!" << std::endl;
+	    continue;
+    }
     if ( ghosts.size() != 1 )
-	    throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1.";
+	    throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1 instead of " << ghosts.size();
     std::vector< art::Ptr<simb::MCParticle> > mcps = mcp_from_ghost.at( ghosts.at(0).key() );
-    std::vector< art::Ptr<anab::Calorimetry> > calos = caloFromTracks.at( thisTrack.key() );
+    std::vector< art::Ptr<anab::Calorimetry> > calos = caloFromTracks.at( &thisTrack - &trackList[0] );
 
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same track!" << std::endl;
+    if (mcps.size() == 0 ) mf::LogError(__FUNCTION__) << "ERROR!! No MCP associated with track !!!" << std::endl;
     if (calos.size() != 3 ) mf::LogWarning(__FUNCTION__) << "Warning !!! Calorimetry info size " << calos.size() << " != 3 associated to tracks!" << std::endl;
     if ( previous_track_id >= thisTrack->ID() ) mf::LogError(__FUNCTION__) << "ERROR! The Track ID's are not in ascending order! " << std::endl;
 
@@ -507,6 +540,9 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
         << "\nStatusCode : " << thisMcp->StatusCode()
         << "\nMother Pdg : " << thisMcp->Mother()
         << "\nPx, Py, Pz : " << thisMcp->Px() << ", " << thisMcp->Py() << ", " << thisMcp->Pz()
+        << "\nstart x, y, z : " << thisMcp->Position().X() << ", " << thisMcp->Position().Y() << ", " << thisMcp->Position().Z()
+        << "\nend x, y, z : " << thisMcp->EndPosition().X() << ", " << thisMcp->EndPosition().Y() << ", " << thisMcp->EndPosition().Z()
+        << "\nObject Key  : " << thisMcp.key() 
         << std::endl;
 #endif
     auto it_found = std::find( event_store->fg4_id.begin(), event_store->fg4_id.end(), thisMcp->TrackId() ) ;
@@ -535,7 +571,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	    if ( old_distance < new_distance )
 		    continue;
     }
-        
+   
         event_store->fis_tracked[pos] = true;
 	event_store->fmatch_multiplicity[pos] = event_store->fmatch_multiplicity[pos] + 1;
 	event_store->flength_reco[pos] = thisTrack->Length();
@@ -597,7 +633,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
         
         track_id_counter++;
   }//Tracks
-
+  
 
   //checks on showers
   //I am indexing showers manually because I am lazy and I am copying what I did for tracks
@@ -607,15 +643,20 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 
   //int all_hits_tracks = 0;
   // loop tracks and do truth matching 
+  //std::cout << "NUMBER OF SHOWERS " << showerList.size() << std::endl;
   for (auto const& thisShower : showerList) {
     
-    std::vector< art::Ptr<recob::PFParticle> > pfp_shower = pfpFromShower.at ( thisShower.key() );
-    if ( pfp_shower.size() > 1 )
-	throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1 or 0.";
-    std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at (pfp_shower.at(0).key() );
+    std::vector< art::Ptr<recob::PFParticle> > pfp_shower = pfpFromShower.at ( &thisShower - &showerList[0] );
+    if ( pfp_shower.size() != 1 )
+	throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1.";
+    std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at ( pfp_shower.at(0).key() );
+    if ( ghosts.size() == 0 ) {
+	    std::cout << "Warning! No ghost for this shower! " << std::endl;
+	    continue;
+    }
     if ( ghosts.size() != 1 )
- 	throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1.";
-    std::vector< art::Ptr<simb::MCParticle> > mcps = mcp_from_ghost.at( ghosts.at(0).key() );
+ 	throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1 instead of " << ghosts.size();
+    std::vector< art::Ptr<simb::MCParticle> > mcps = mcp_from_ghost.at( ghosts.at(0).key()  );
 
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same shower!" << std::endl;
     if ( previous_shower_id >= thisShower->ID() ) mf::LogError(__FUNCTION__) << "ERROR! The Shower ID's are not in ascending order! " << std::endl;
@@ -758,6 +799,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 
 
   //std::cout << "NEUTRINO " <<  fnu_reco_x << " " << fnu_reco_y << " " << fnu_reco_z << std::endl;
+	std::cout << "NEUTRINO " << std::endl;
 
   int muon_pos;
   histo_maker->Fill_Analysis_Histos( event_store, muon_pos, fWriteHistograms); //plots tracking and vertexing information
@@ -883,13 +925,12 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 			
 			//associate the pfp to the tracks
 			for ( auto const& track : trackList) {
-			//std::vector< art::Ptr <recob::PFParticle> > pfp_track = pfpFromTrack.at( &track - &trackList[0] );
-    			std::vector< art::Ptr<recob::PFParticle> > pfp_track = pfpFromTrack.at ( track.key() );
+			std::vector< art::Ptr <recob::PFParticle> > pfp_track = pfpFromTrack.at( &track - &trackList[0] );
     			if ( pfp_track.size() != 1 )
-	    			throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1.";
-    			std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at (pfp_track.at(0).key() );
+	    			throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1 or 0.";
+    			std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at ( pfp_track.at(0).key() );
     			if ( ghosts.size() != 1 )
-	    			throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1.";
+	    			throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1 or 0.";
     			std::vector< art::Ptr<simb::MCParticle> > mcp_track = mcp_from_ghost.at( ghosts.at(0).key() );
 
 			//unsupported here

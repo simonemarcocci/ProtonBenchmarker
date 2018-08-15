@@ -62,7 +62,7 @@
 //UBXSec includes
 #include "uboone/UBXSec/DataTypes/SelectionResult.h"
 
-#define isDebug 0
+#define isDebug 1
 
 #define isSingleParticle 0
 

@@ -11,7 +11,7 @@ UBXSecBenchmarker: {
       G4TruthLabel: "largeant"
       ShowerLabel:  "pandoraNu::UBXSec"
       CalorimetryLabel:  "pandoraNucali::UBXSec"
-      ShowerTruthLabel: "showerrecopandoraTruthMatch"
+      ShowerTruthLabel: "pandoraNu::UBXSec"
       HitLabel: "pandoraCosmicHitRemoval::UBXSec"
       IsVertexFitter: false
       VertexFitterLabel: "vertexfitterpandoraNu"
