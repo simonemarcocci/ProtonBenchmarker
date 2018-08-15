@@ -927,10 +927,14 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 			for ( auto const& track : trackList) {
 			std::vector< art::Ptr <recob::PFParticle> > pfp_track = pfpFromTrack.at( &track - &trackList[0] );
     			if ( pfp_track.size() != 1 )
-	    			throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1 or 0.";
+	    			throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1.";
     			std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at ( pfp_track.at(0).key() );
+    			if ( ghosts.size() == 0 ) {
+	    		std::cout << "The number of ghosts is zero for a track. Warning!!!" << std::endl;
+	    		continue;
+    			}
     			if ( ghosts.size() != 1 )
-	    			throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1 or 0.";
+	    			throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1.";
     			std::vector< art::Ptr<simb::MCParticle> > mcp_track = mcp_from_ghost.at( ghosts.at(0).key() );
 
 			//unsupported here
