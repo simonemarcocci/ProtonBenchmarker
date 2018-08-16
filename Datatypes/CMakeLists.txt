@@ -8,12 +8,10 @@ set( ROOTLIB -L$ENV{ROOTSYS}/lib -lCore -lRIO -lNet -lHist -lGraf -lGraf3d -lGpa
 link_libraries( ${LIB_NAME} -L$ENV{BOOST_LIB} -lboost_system ${ROOTLIB} )
 
 art_make( BASENAME_ONLY
-	LIBRARY_NAME     uboonecode_uboone_ProtonBenchmarker_Datatypes
+	  LIBRARY_NAME     ubana_ProtonBenchmarker_Datatypes
           LIB_LIBRARIES
-                   uboonecode_uboone_BasicTool_GeoAlgo
 	  	   larcore_Geometry
 		   larcore_Geometry_Geometry_service
-                   uboone_RawData
                    lardataobj_RawData
 		   lardataobj_RecoBase
                    lardataobj_AnalysisBase
@@ -47,8 +45,6 @@ art_make( BASENAME_ONLY
 
           MODULE_LIBRARIES
 		   larpandora_LArPandoraInterface
-
-                   uboone_RawData
 	  	   larcore_Geometry
 		   larcore_Geometry_Geometry_service
 		   lardataobj_RecoBase

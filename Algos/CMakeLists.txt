@@ -10,14 +10,9 @@ set( ROOTLIB -L$ENV{ROOTSYS}/lib -lCore -lRIO -lNet -lHist -lGraf -lGraf3d -lGpa
 link_libraries( ${LIB_NAME} -L$ENV{BOOST_LIB} -lboost_system ${ROOTLIB} )
 
 art_make( BASENAME_ONLY
-          LIBRARY_NAME     uboonecode_uboone_ProtonBenchmarker_Algos
+          LIBRARY_NAME     ubana_ProtonBenchmarker_Algos
           LIB_LIBRARIES
-            uboonecode_uboone_BasicTool_GeoAlgo
-            uboone_UBFlashFinder
-            uboonecode_uboone_SelectionTool_OpT0FinderBase
-            uboonecode_uboone_SelectionTool_OpT0FinderAlgorithms
             larcore_Geometry_Geometry_service
-            uboone_RawData
             SignalShapingServiceMicroBooNE_service
             larevt_CalibrationDBI_IOVData
             larevt_CalibrationDBI_Providers
@@ -64,9 +59,6 @@ art_make( BASENAME_ONLY
             larpandora_LArPandoraInterface
             #                   larpandora_LArPandoraContent
           
-            uboonecode_uboone_BasicTool_GeoAlgo
-            uboonecode_uboone_SelectionTool_OpT0FinderBase
-            uboonecode_uboone_SelectionTool_OpT0FinderAlgorithms
             uboone_UBFlashFinder
           
             uboone_RawData
