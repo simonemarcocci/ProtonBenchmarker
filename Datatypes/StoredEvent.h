@@ -12,6 +12,7 @@
 #include <vector>
 #include <map>
 #include <string>
+#include "TVector3.h"
 
 
 class StoredEvent {
@@ -77,12 +78,15 @@ public:
    std::vector<float> fcostheta_muon_reco; //MCtruth info
    std::vector<int> fpdg_reco;
    std::vector<float> flength_reco;
+   std::vector<float> freco_costheta_muon;
+   std::vector<TVector3> freco_start_direction;
    std::vector<float> freco_momentum_mcs; //(GeV) MCS
    std::vector<float> freco_momentum_mcs_llhd; //(GeV) MCS LLHD
    std::vector<float> freco_momentum_range; //MeV
    std::vector<float> fpurity;
    std::vector<float> fcompleteness;
    std::vector<double> fnhits;
+   std::vector<bool> freco_ismuon;
    std::vector<float> freco_kinE;
    std::vector<float> freco_startx;
    std::vector<float> freco_starty;

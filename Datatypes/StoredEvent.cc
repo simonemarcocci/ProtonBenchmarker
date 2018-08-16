@@ -35,6 +35,9 @@ void StoredEvent::AllocateRecoVectors() {
 	fcompleteness.push_back(-1);
 	fnhits.push_back(-1);
 	freco_kinE.push_back(-1);
+	freco_start_direction.push_back(TVector3(0,0,0));
+	freco_ismuon.push_back(false);
+	freco_costheta_muon.push_back(-2);
 	freco_startx.push_back(-1);
 	freco_starty.push_back(-1);
 	freco_startz.push_back(-1);

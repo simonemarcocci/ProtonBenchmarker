@@ -47,7 +47,6 @@
 #include "TH2D.h"
 #include "TH1D.h"
 #include <algorithm>
-#include "TVector3.h"
 
 // local includes
 #include "uboone/ProtonBenchmarker/Algos/protonBenchmarkerUtility.h"
@@ -151,7 +150,7 @@ void recohelper::UBXSecBenchmarker::beginJob()
 	//std::cout << ">>>>>>>" << art::RootInputFile::fileName() << std::endl;
   recoTree = tfs->make<TTree>("recotree", "recotree");
   event_store = new StoredEvent();
-  histo_maker = new reco_histo::HistoMaker( fIsData );
+  histo_maker = new reco_histo::HistoMaker();
   if ( fWriteHistograms ) {
   histo_maker->Init( tfs );
   art::TFileDirectory hits_dir = tfs->mkdir("hits_dir");
@@ -243,7 +242,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   art::Handle< std::vector<simb::MCTruth> > mcTruthHandle; 
   std::vector< art::Ptr<simb::MCTruth> > mcTruth;
   //get MCparticles associated to MCtruth
-  art::FindManyP<simb::MCParticle> *MCpFromMCtruth = NULL;
+  art::FindManyP<simb::MCParticle> *MCpFromMCtruth;
   
   if ( !fIsData ) {
   if (e.getByLabel( fG4TruthLabel, mcParticleHandle))
@@ -270,8 +269,8 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   //hit-cluster assn
   art::FindManyP<recob::Hit> hitsFromClusters(clusterHandle, e, fClusterLabel);
 
-  art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData> *MCPfromhits = NULL;
-  art::FindManyP<recob::Hit, anab::BackTrackerHitMatchingData> *hitsFromMCP = NULL;
+  art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData> MCPfromhits;
+  art::FindManyP<recob::Hit, anab::BackTrackerHitMatchingData> hitsFromMCP;
  
   if ( !fIsData ) {
   MCPfromhits = new art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData>( hitHandle, e, fHitAssnTruthLabel);
@@ -308,22 +307,14 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   //art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromTracks(trackHandle, e, fTrackTruthLabel);
   //art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromShowers(showerHandle, e, fShowerTruthLabel);
   //need to go from track/shower to PFP to ghost to MCP
-  art::FindManyP< ubana::MCGhost > *ghost_from_pfp = NULL;
-  art::FindManyP< simb::MCParticle > *mcp_from_ghost = NULL;
+  art::FindManyP< ubana::MCGhost > ghost_from_pfp;
+  art::FindManyP< simb::MCParticle > mcp_from_ghost;
 
   if ( !fIsData ) {
   ghost_from_pfp = new art::FindManyP< ubana::MCGhost >( pfp_handle, e, fTrackTruthLabel );
   mcp_from_ghost = new art::FindManyP< simb::MCParticle >( ghost_h, e, fTrackTruthLabel );
   }
 
-  int muon_id = -1;
-  double muon_p = 0;
-  double muon_px = 0;
-  double muon_py = 0;
-  double muon_pz = 0;
-  double muon_endx = 0;
-  double muon_endy = 0;
-  double muon_endz = 0;
 
   if (!fIsData) { //save MCtruth stuff if it's MC 
 
@@ -362,9 +353,17 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   event_store->fneutrino_z = thisNeutrino.Nu().Position().Z() + zOffset;
 
   // first loop muons to find true neutrino induced muon (NIM)
-  for (unsigned i = 0; i < MCpFromMCtruth->at(n_truth).size();i++){
+  double muon_p = 0;
+  double muon_px = 0;
+  double muon_py = 0;
+  double muon_pz = 0;
+  double muon_endx = 0;
+  double muon_endy = 0;
+  double muon_endz = 0;
+  int muon_id = -1;
+  for (unsigned i = 0; i < MCpFromMCtruth.at(n_truth).size();i++){
   //for ( auto const& thisMcp : mcList ){
-    const art::Ptr< simb::MCParticle >& thisMcp = MCpFromMCtruth->at(n_truth).at(i);
+    const art::Ptr< simb::MCParticle >& thisMcp = MCpFromMCtruth.at(n_truth).at(i);
     if (std::abs(thisMcp->PdgCode()) == 13 && thisMcp->StatusCode()==1 && thisMcp->Mother()==0 && thisMcp->Process() == "primary" && _pbutilInstance.isInTPC(thisMcp) == true) {
       muon_p = thisMcp->Momentum().Rho();
       muon_px = thisMcp->Momentum().X();
@@ -383,9 +382,9 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   }
  
   //now other MC particles
-  for (unsigned i = 0; i < MCpFromMCtruth->at(n_truth).size(); i++){
+  for (unsigned i = 0; i < MCpFromMCtruth.at(n_truth).size(); i++){
   //for ( auto const& thisMcp : mcList ){
-  const art::Ptr< simb::MCParticle >& thisMcp = MCpFromMCtruth->at(n_truth).at(i);
+  const art::Ptr< simb::MCParticle >& thisMcp = MCpFromMCtruth.at(n_truth).at(i);
     
     //in case of NC, the neutrino is kept and thus we should drop it
     //if it's an electron, check if it's a Michel. If yes, keep it.
@@ -488,7 +487,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	   auto itt = std::find ( event_store->fg4_id.begin(), event_store->fg4_id.end(),  mcp->TrackId());
 	   if ( itt == event_store->fg4_id.end() ) continue;
   //nhits from MCP
-	std::vector< art::Ptr < recob::Hit> > hits_mcp = hitsFromMCP->at( &mcp - &mcList[0] );
+	std::vector< art::Ptr < recob::Hit> > hits_mcp = hitsFromMCP.at( &mcp - &mcList[0] );
 	//std::cout <<  itt - fg4_id.begin() << " " << freco_mcp_hits.size() << std::endl;
 	event_store->freco_mcp_hits[ itt - event_store->fg4_id.begin() ] = hits_mcp.size() ;
 	
@@ -525,7 +524,6 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   int track_id_counter = 0;
   int previous_track_id = -1;
   double previous_track_length = -1;
-  TVector3 muon_dir;
 
   //int all_hits_tracks = 0;
   // loop tracks and do truth matching 
@@ -546,7 +544,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	trkm.SetMinLength(0); //minimum track length for momentum calculation
 	event_store->freco_momentum_mcs[ &thisTrack - &trackList[0] ] = trkm.GetMomentumMultiScatterChi2( thisTrack );
 	event_store->freco_momentum_mcs_llhd[ &thisTrack - &trackList[0] ] = trkm.GetMomentumMultiScatterLLHD( thisTrack ) ;
-	event_store->freco_momentum_range[ &thisTrack - &trackList[0] ] = trkm.GetTrackMomentum( thisTrack->Length(), 13 ); //assume it's a muon
+	event_store->freco_momentum_range[ &thisTrack - &trackList[0] ] = trkm.GetTrackMomentum( thisTrack->Length(), event_store->fpdg[ &thisTrack - &trackList[0] ] ); //use info on pdg
 	event_store->freco_startx[ &thisTrack - &trackList[0] ] = thisTrack->Vertex().X(); 
 	event_store->freco_starty[ &thisTrack - &trackList[0] ] = thisTrack->Vertex().Y(); 
 	event_store->freco_startz[ &thisTrack - &trackList[0] ] = thisTrack->Vertex().Z(); 
@@ -554,49 +552,21 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	event_store->freco_endy[ &thisTrack - &trackList[0] ] = thisTrack->End().Y(); 
 	event_store->freco_endz[ &thisTrack - &trackList[0] ] = thisTrack->End().Z(); 
 	event_store->freco_trackid[ &thisTrack - &trackList[0] ] = thisTrack->ID();
-	TVector3 this_vector( TVector3( thisTrack->StartDirection().x(), thisTrack->StartDirection().y(), thisTrack->StartDirection().z()).Unit() );
-	event_store->freco_start_direction[ &thisTrack - &trackList[0] ] = this_vector;
-	event_store->freco_costheta_muon[ &thisTrack - &trackList[0] ] =  this_vector.Dot( muon_dir ); //recompute costheta_muon reco'ed
 	if ( thisTrack->Length() > previous_track_length ) { //the muon is the longest track
 		previous_track_length = thisTrack->Length();
 		is_muon = true;
-		event_store->freco_ismuon[ &thisTrack - &trackList[0] ] = true;
-		muon_dir.SetXYZ( this_vector.x(), this_vector.y(), this_vector.z() );
-		for ( unsigned ijk = 0; ijk< &thisTrack - &trackList[0] - 1; ijk++) {
-			event_store->freco_ismuon[ijk] = false; //set to false the previous muon which is now being overwritten
-			event_store->freco_costheta_muon[ijk] =  this_vector.Dot ( event_store->freco_start_direction[ijk]); //recompute costheta_muon reco'ed
-		}
 	}
-        
-	//check association of hits <-> tracks
-	//nhits from track
-	std::vector< art::Ptr < recob::Hit> > hits_tracks = hitsFromTracks.at( track_id_counter );
-	event_store->freco_track_hits[ &thisTrack - &trackList[0] ] = hits_tracks.size() ;
-
-	//loop over hits, and save some information for collection hits only (for now)
-	int n_collection_hits = 0;
-	float total_hit_charge = 0;
-	//track hits
-	for ( auto const& iter_hit : hits_tracks ){
-		if ( iter_hit->View() == geo::kW ){	
-			n_collection_hits++;
-			total_hit_charge += iter_hit->Integral();
-		}
-	}
-	event_store->freco_track_collection_hits[ &thisTrack - &trackList[0] ] = n_collection_hits;
-	event_store->freco_track_collection_charge[ &thisTrack - &trackList[0] ] = total_hit_charge;
-	
 
     } else { //MC part
     //std::cout << "SIZE GHOST_FROM_PFP " << ghost_from_pfp.size() << " key " << pfps.at(0).key() << " track # " << &thisTrack - &trackList[0] << std::endl;
-    std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp->at ( pfps.at(0).key() );
+    std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at ( pfps.at(0).key() );
     if ( ghosts.size() == 0 ) {
 	    std::cout << "The number of ghosts is zero for a track. Warning!!!" << std::endl;
 	    continue;
     }
     if ( ghosts.size() != 1 )
 	    throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1 instead of " << ghosts.size();
-    std::vector< art::Ptr<simb::MCParticle> > mcps = mcp_from_ghost->at( ghosts.at(0).key() );
+    std::vector< art::Ptr<simb::MCParticle> > mcps = mcp_from_ghost.at( ghosts.at(0).key() );
 
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same track!" << std::endl;
     if (mcps.size() == 0 ) mf::LogError(__FUNCTION__) << "ERROR!! No MCP associated with track !!!" << std::endl;
@@ -676,21 +646,6 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	
 	if (thisMcp->PdgCode() == 13 )  //for the muon, only when there is the info
 		is_muon = true;
-	
-	std::vector< art::Ptr < recob::Hit> > hits_tracks = hitsFromTracks.at( track_id_counter );
-	event_store->freco_track_hits[pos] = hits_tracks.size() ;
-	//loop over hits, and save some information for collection hits only (for now)
-	int n_collection_hits = 0;
-	float total_hit_charge = 0;
-	//track hits
-	for ( auto const& iter_hit : hits_tracks ){
-		if ( iter_hit->View() == geo::kW ){	
-			n_collection_hits++;
-			total_hit_charge += iter_hit->Integral();
-		}
-	}
-	event_store->freco_track_collection_hits[pos] = n_collection_hits;
-	event_store->freco_track_collection_charge[pos] = total_hit_charge;
  	
     	}//MCParticle
     } //else of fIsData
@@ -712,6 +667,24 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	}
     
 
+        //check association of hits <-> tracks
+	//nhits from track
+	std::vector< art::Ptr < recob::Hit> > hits_tracks = hitsFromTracks.at( track_id_counter );
+	event_store->freco_track_hits[pos] = hits_tracks.size() ;
+
+	//loop over hits, and save some information for collection hits only (for now)
+	int n_collection_hits = 0;
+	float total_hit_charge = 0;
+	//track hits
+	for ( auto const& iter_hit : hits_tracks ){
+		if ( iter_hit->View() == geo::kW ){	
+			n_collection_hits++;
+			total_hit_charge += iter_hit->Integral();
+		}
+	}
+	event_store->freco_track_collection_hits[pos] = n_collection_hits;
+	event_store->freco_track_collection_charge[pos] = total_hit_charge;
+	
         
         track_id_counter++;
   }//Tracks
@@ -732,14 +705,14 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
     std::vector< art::Ptr<recob::PFParticle> > pfp_shower = pfpFromShower.at ( &thisShower - &showerList[0] );
     if ( pfp_shower.size() != 1 )
 	throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1.";
-    std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp->at ( pfp_shower.at(0).key() );
+    std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at ( pfp_shower.at(0).key() );
     if ( ghosts.size() == 0 ) {
 	    std::cout << "Warning! No ghost for this shower! " << std::endl;
 	    continue;
     }
     if ( ghosts.size() != 1 )
  	throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1 instead of " << ghosts.size();
-    std::vector< art::Ptr<simb::MCParticle> > mcps = mcp_from_ghost->at( ghosts.at(0).key()  );
+    std::vector< art::Ptr<simb::MCParticle> > mcps = mcp_from_ghost.at( ghosts.at(0).key()  );
 
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same shower!" << std::endl;
     if ( previous_shower_id >= thisShower->ID() ) mf::LogError(__FUNCTION__) << "ERROR! The Shower ID's are not in ascending order! " << std::endl;
@@ -886,11 +859,12 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 
 
   //std::cout << "NEUTRINO " <<  fnu_reco_x << " " << fnu_reco_y << " " << fnu_reco_z << std::endl;
+	std::cout << "NEUTRINO " << std::endl;
 
   int muon_pos;
-  histo_maker->Fill_Analysis_Histos( event_store, muon_pos, fWriteHistograms ); //plots tracking and vertexing information
+  histo_maker->Fill_Analysis_Histos( event_store, muon_pos, fWriteHistograms); //plots tracking and vertexing information
   
-  if (muon_pos != -1 && !fIsData ) { //for the moment neglect a lot of hit information for data //FIXME
+  if (muon_pos != -1) {
   //now loop over hits and check:
   //-which MCP the hit belongs to
   //-is the MCP tracked?
@@ -900,7 +874,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   for ( auto const& hit: hitList ) {
 	  //only care at collection for now
 	if ( hit->View() != geo::kW ) continue;
-	std::vector< art::Ptr <simb::MCParticle> > mcparticle_hits = MCPfromhits->at( &hit - &hitList[0] );
+	std::vector< art::Ptr <simb::MCParticle> > mcparticle_hits = MCPfromhits.at( &hit - &hitList[0] );
 	std::vector< art::Ptr <recob::SpacePoint> > spacepoint_hits = spacepointFromHits.at( &hit - &hitList[0] );
 	art::ServiceHandle<geo::Geometry> geom;
 	std::vector<double> xyz = { 0, 0, 0};
@@ -923,7 +897,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	if (  mcparticle_hits.size() == 0 ) continue; 
 	unsigned index = 0;
 	for (unsigned jj=0; jj<mcparticle_hits.size(); jj++) {
-			bool is_max = MCPfromhits->data( &hit - &hitList[0] ).at( jj )->isMaxIDE;
+			bool is_max = MCPfromhits.data( &hit - &hitList[0] ).at( jj )->isMaxIDE;
 			if ( is_max ) {
 				index = jj;
 				//std::cout << "WARNING! Can't be already !=0" << std::endl;
@@ -1014,14 +988,14 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 			std::vector< art::Ptr <recob::PFParticle> > pfp_track = pfpFromTrack.at( &track - &trackList[0] );
     			if ( pfp_track.size() != 1 )
 	    			throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1.";
-    			std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp->at ( pfp_track.at(0).key() );
+    			std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at ( pfp_track.at(0).key() );
     			if ( ghosts.size() == 0 ) {
 	    		std::cout << "The number of ghosts is zero for a track. Warning!!!" << std::endl;
 	    		continue;
     			}
     			if ( ghosts.size() != 1 )
 	    			throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1.";
-    			std::vector< art::Ptr<simb::MCParticle> > mcp_track = mcp_from_ghost->at( ghosts.at(0).key() );
+    			std::vector< art::Ptr<simb::MCParticle> > mcp_track = mcp_from_ghost.at( ghosts.at(0).key() );
 
 			//unsupported here
 			//unsigned mm = 0;

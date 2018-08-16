@@ -29,7 +29,7 @@ namespace reco_histo{
 
     public:
 	
-	    HistoMaker( bool isVerbose = false ){
+	    HistoMaker( bool isdata = false, bool isverbose = false ){
 		    is_init = false;
 		    is_init_hit = false;
     	 	    low_edge = 350;
@@ -42,6 +42,8 @@ namespace reco_histo{
 		    count_not_tracked = 0;
 		    is_lowmomentum_p = false;
 		    fmuon_pos = -1;
+		    isVerbose = isverbose;
+		    isData = isdata;
 	    }
 	    ~HistoMaker(){}
 
@@ -51,11 +53,13 @@ namespace reco_histo{
 	    void Fill_Truth_Histos( StoredEvent* );
 	    void Fill_Hit_Histos( StoredEvent* );
 	    void Fill_Analysis_Histos( StoredEvent*, int&, bool );
+	    void Fill_Analysis_Histos_Data( StoredEvent*, int&, bool );
 	    void FillCumulativeHistograms();
 	    void ScalePlots(int);
 
    private:
 
+   bool isData;
    bool isVerbose;
    bool is_init;
    bool is_init_hit;

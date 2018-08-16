@@ -18,6 +18,7 @@ UBXSecBenchmarker: {
       TrackTruthLabel: "RecoTrueMatcher::UBXSec"
       WriteHistograms: true
       UBXSecInput: true
+      IsData: false
 }
 
 END_PROLOG

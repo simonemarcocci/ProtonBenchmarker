@@ -6,6 +6,7 @@
 namespace reco_histo{
 
 void HistoMaker::Init( art::ServiceHandle< art::TFileService > tfs ) {
+   if (!isData) { //is MC
    hproton_multi_all = tfs->make<TH1D>("proton_multi_all","Proton multiplicity for all CC events;# protons;# of events normalized",20,-0.5,19.5); //proton multiplicity
    hproton_leading_kinE = tfs->make<TH1D>("proton_leading_kinE","Leading proton kinE;Kinetic Energy (MeV);",4000,0,4000); //leading proton kinE
    hproton_multi_above20MeV = tfs->make<TH1D>("proton_multi_above20MeV","Proton multiplicity above 20MeV;# protons;# of events normalized",20,-0.5,19.5); //proton multiplicity
@@ -50,7 +51,7 @@ void HistoMaker::Init( art::ServiceHandle< art::TFileService > tfs ) {
    hproton_nhits_all_angle2 = tfs->make<TH1D>("proton_nhits_all_angle2","Proton reco efficiency when #mu-p angle is <60 && > 30degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
    hproton_nhits_tracked_angle3 = tfs->make<TH1D>("proton_nhits_tracked_angle3","Proton reco efficiency when #mu-p angle is >60degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
    hproton_nhits_all_angle3 = tfs->make<TH1D>("proton_nhits_all_angle3","Proton reco efficiency when #mu-p angle is >60degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
-  
+   
    hproton_nhits = tfs->make<TH1D>("proton_nhits","nhits for reco'ed protons; nhits",1000,0,1000); //reco efficiency protons vs kin E
    hproton_nhits_CP = tfs->make<TH1D>("proton_nhits_CP","Collection Plane nhits for reco'ed protons; nhits",1000,0,1000); //reco efficiency protons vs kin E
    hproton_nhits_all = tfs->make<TH1D>("proton_nhits_all","nhits for ALL protons; nhits",1000,0,1000); //reco efficiency protons vs kin E
@@ -66,6 +67,7 @@ void HistoMaker::Init( art::ServiceHandle< art::TFileService > tfs ) {
    h_theta_mu = tfs->make<TH1D>("theta_mu","Cos #theta between muon and protons;cos #theta",1000,-1,1); //true costheta between muon and protons
    h_theta_mu_length = tfs->make<TH2D>("theta_mu_length","Tracking efficiency vs (length, cos #theta_{p#mu});Cos #theta; l (cm)",1000,-1,1,1000,0,100);
    h_theta_mu_length_all = tfs->make<TH2D>("theta_mu_length_all","Tracking efficiency vs (length, cos #theta_{p#mu});Cos #theta; l (cm)",1000,-1,1,1000,0,100);
+   }
    h_dqdx_merged = tfs->make<TH2D>("dqdx_merged","dq/dx for events with at least a merged proton; Distance from vertex (cm); dq/dx (ADC)",2500,0,250,1500,0,1500);
    h_dqdx_not_merged = tfs->make<TH2D>("dqdx_not_merged","dq/dx for events with no merged proton; Distance from vertex (cm); dq/dx (ADC)",2500,0,250,1500,0,1500);
    h_dqdx_low_protons = tfs->make<TH2D>("dqdx_low_protons","dq/dx for events with low E proton; Distance from vertex (cm); dq/dx (ADC)",2500,0,250,1500,0,1500);
@@ -127,7 +129,8 @@ void HistoMaker::Init( art::ServiceHandle< art::TFileService > tfs ) {
 }//end general init
 
 void HistoMaker::Init_Hit(  art::TFileDirectory hits_dir ) {
-   
+  
+   if ( !isData ) { //for now onyl MC
    //hits analysis
    h_tracked_not_clustered_distance_nuvtx = hits_dir.make<TH1D>("tracked_not_clustered_distance_nuvtx", "Distance between hit and nu vertex for not clustered hits for tracked particles", 1000,0,100 );
    h_tracked_not_clustered_muon_start = hits_dir.make<TH1D>("tracked_not_clustered_muon_start", "Distance between hit and muon start position for not clustered hits for tracked muons", 1000,0,100 );
@@ -273,6 +276,7 @@ void HistoMaker::Init_Hit(  art::TFileDirectory hits_dir ) {
    h_muon_CMI_lateral_charge_low_protons = hits_dir.make<TH2D>("muon_CMI_lateral_charge_low_protons","Clustered and mismatched hit charge vs lateral distance muon - proton for muons in \"bad proton\" events", 1000,0,1000,800,0,200);
    h_muon_CMI_costheta_charge_low_protons = hits_dir.make<TH2D>("muon_CMI_costheta_charge_low_protons","Clustered and mismatched hit charge vs costheta muon - proton for muons in \"bad proton\" events", 1000,0,1000,100,-1,1);
 
+   } //isdata
    is_init_hit = true;
 } //end hits init
 
@@ -316,6 +320,11 @@ void HistoMaker::Fill_Truth_Histos( StoredEvent* event_store ) {
 
 
 void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos, bool write_histos = true ) {
+ 
+  if ( isData ) {
+	  this->Fill_Analysis_Histos_Data ( event_store, muon_pos, write_histos );
+	  return;
+  }
   
   if (!is_init && write_histos)
 	  throw cet::exception("Configuration") << "Histo Maker NOT initialized";
@@ -583,6 +592,68 @@ if (count_not_tracked && isVerbose) {
 
 
 }//end fill analysis histos
+
+
+void HistoMaker::Fill_Analysis_Histos_Data( StoredEvent* event_store, int & muon_pos, bool write_histos = true ) {
+  
+  if (!is_init && write_histos)
+	  throw cet::exception("Configuration") << "Histo Maker NOT initialized";
+  
+    if ( !write_histos ) return; //select events with a reco muon or quit if you don't want to write histograms
+    
+    for (unsigned i = 0; i < event_store->fis_tracked.size(); i++) { //need to index on reco stuff
+	    if ( event_store->freco_ismuon[i] ) { //ismuon
+	    if ( event_store->fis_tracked[i] &&  event_store->fmuon_dqdx.size() != 0 ) { //want that the muon is well matched and w/ dqdx info
+		muon_pos = i; 
+	    	if (write_histos) {
+	    	hmuon_length->Fill( event_store->flength_reco[i] );
+    		}
+	    } 
+    	} else { //not a muon
+    
+            hproton_l_all->Fill( event_store->flength_reco[i] );
+	    hproton_l->Fill( event_store->flength_reco[i] );
+   	    hproton_nhits_all->Fill( event_store->fnhits[i] );
+   	    hproton_nhits_CP_all->Fill( event_store->freco_mcp_collection_hits[i] );
+   	    hproton_nhits->Fill( event_store->fnhits[i] );
+   	    hproton_nhits_CP->Fill( event_store->freco_mcp_collection_hits[i] );
+  	 
+	    h_theta_mu->Fill( event_store->freco_costheta_muon[i] );	
+	    h_pmu_end_tracked->Fill( event_store->flength_reco[i] * sqrt( 1 - pow( event_store->freco_costheta_muon[i] ,2 ) ) ) ;
+	    h_theta_mu_tracked->Fill ( event_store->freco_costheta_muon[i] ) ;
+
+	if ( event_store->fmuon_residual.size() != event_store->fmuon_dqdx.size()) std::cout << "ERROR on calorimetry vector sizes!!!" << std::endl;
+		for (unsigned jj=1; jj<event_store->fmuon_dqdx.size()-1; jj++) {
+				if ( event_store->fmuon_range - event_store->fmuon_residual[jj] < 8 ) { //look at 8cm only
+				h_dqdx_1d_not_merged->Fill(event_store->fmuon_dqdx[jj]);
+				}
+
+				h_dqdx_not_merged->Fill( event_store->fmuon_range - event_store->fmuon_residual[jj], event_store->fmuon_dqdx[jj] );
+				h_dqdx_not_merged_service->Fill( event_store->fmuon_range -  event_store->fmuon_residual[jj], event_store->fmuon_dqdx[jj] );
+		}
+		TH1D* h1 = NULL;
+		h1 = h_dqdx_not_merged_service->ProjectionY("h",1, length_cut);
+		if (h1) htail_to_tot_not_merged->Fill( h1->Integral(low_edge,high_edge) ); 
+		h_dqdx_not_merged_service->Reset();
+
+		for (unsigned jj=1; jj<event_store->fmuon_dqdx.size()-1; jj++) {
+				if ( event_store->fmuon_range - event_store->fmuon_residual[jj] < 8 ) //look at 8cm only
+				h_dqdx_1d_merged->Fill(event_store->fmuon_dqdx[jj]);
+
+				h_dqdx_merged->Fill(  event_store->fmuon_range - event_store->fmuon_residual[jj], event_store->fmuon_dqdx[jj] );
+				h_dqdx_merged_service->Fill( event_store->fmuon_range -  event_store->fmuon_residual[jj], event_store->fmuon_dqdx[jj] );
+		}
+		h1 = NULL;
+		h1 = h_dqdx_merged_service->ProjectionY("h",1,length_cut);
+		if (h1)
+		htail_to_tot_merged->Fill( h1->Integral(low_edge,high_edge) );
+		h_dqdx_merged_service->Reset();
+
+	}
+    }
+		    
+}//end fill analysis histos data
+
 
 void HistoMaker::FillCumulativeHistograms() {
 
@@ -973,6 +1044,7 @@ if ( count_not_tracked > 0 ) { //some are not tracked
 }//end fill hit
 
 void HistoMaker::ScalePlots( int n_events ) {
+  if (isData) return;
   //scale some histos	
   if (n_events) {
   hproton_multi_all->Scale(1./n_events);
