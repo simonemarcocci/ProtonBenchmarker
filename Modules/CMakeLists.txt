@@ -10,19 +10,25 @@ art_make( BASENAME_ONLY
           LIB_LIBRARIES
             ubana_ProtonBenchmarker_Algos
 	    ubana_ProtonBenchmarker_Datatypes
-	    ubana_UBXSec_DataTypes
+	    larcorealg_Geometry
+	    larcorealg_GeoAlgo
+	    ubobj_UBXSec
 	    ${PANDORASDK}
 	    ${PANDORAMONITORING}
+	    cetlib cetlib_except
   
           MODULE_LIBRARIES 
+	    cetlib cetlib_except
 	    larpandora_LArPandoraInterface
 	    LArPandoraContent
             ubana_ProtonBenchmarker_Algos
 	    ubana_ProtonBenchmarker_Datatypes
-	    ubana_UBXSec_DataTypes
+	    ubobj_UBXSec
             larcore_Geometry_Geometry_service
+	    larcorealg_Geometry
+	    larcorealg_GeoAlgo
             larsim_Simulation nutools_ParticleNavigation lardataobj_Simulation
-	    larsim_MCCheater_BackTracker_service
+	    larsim_MCCheater_BackTrackerService_service
             lardata_Utilities
             larevt_Filters
             lardataobj_RawData
@@ -32,7 +38,6 @@ art_make( BASENAME_ONLY
             larpandora_LArPandoraInterface
             SignalShapingServiceMicroBooNE_service
             nusimdata_SimulationBase
-            uboone_RawData
             ${LARRECO_LIB}
             ${LARDATA_LIB}
             ${ART_FRAMEWORK_CORE}
@@ -40,11 +45,11 @@ art_make( BASENAME_ONLY
             ${ART_FRAMEWORK_SERVICES_REGISTRY}
             ${ART_FRAMEWORK_SERVICES_OPTIONAL}
             ${ART_FRAMEWORK_SERVICES_OPTIONAL_TFILESERVICE_SERVICE}
-            art_Persistency_Common
-	    #canvas_Persistency_Common
-            art_Persistency_Provenance
+            art_Persistency_Common canvas
+	    #canvas_Persistency_Common 
+            art_Persistency_Provenance canvas
 	    #canvas_Persistency_Provenance
-            art_Utilities 
+            art_Utilities canvas
 	    #canvas_Utilities
             ${MF_MESSAGELOGGER}
             ${MF_UTILITIES}

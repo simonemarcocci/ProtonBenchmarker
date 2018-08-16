@@ -43,7 +43,7 @@
 #include "larevt/SpaceChargeServices/SpaceChargeService.h"
 #include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
 #include "larcoreobj/SimpleTypesAndConstants/geo_types.h"
-#include "larcore/Geometry/WireGeo.h"
+#include "larcorealg/Geometry/WireGeo.h"
 #include "lardataobj/MCBase/MCHitCollection.h"
 #include "larpandora/LArPandoraInterface/LArPandora.h"
 
@@ -55,12 +55,12 @@
 #include <algorithm>
 
 // local includes
-#include "uboone/ProtonBenchmarker/Algos/protonBenchmarkerUtility.h"
-#include "uboone/ProtonBenchmarker/Algos/HistoMaker.h"
-#include "uboone/ProtonBenchmarker/Datatypes/StoredEvent.h"
+#include "ubana/ProtonBenchmarker/Algos/protonBenchmarkerUtility.h"
+#include "ubana/ProtonBenchmarker/Algos/HistoMaker.h"
+#include "ubana/ProtonBenchmarker/Datatypes/StoredEvent.h"
 
 //UBXSec includes
-#include "uboone/UBXSec/DataTypes/SelectionResult.h"
+#include "ubobj/UBXSec/SelectionResult.h"
 
 #define isDebug 1
 
@@ -283,9 +283,9 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   event_store->fccnc = thisNeutrino.CCNC();
   event_store->finteraction = thisNeutrino.InteractionType();
  
-  double xOffset = 0.7 - SCE->GetPosOffsets( thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()  )[0];
-  double yOffset = SCE->GetPosOffsets( thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z() )[1];
-  double zOffset = SCE->GetPosOffsets( thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z() )[2];
+  double xOffset = 0.7 - SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z())  ).x();
+  double yOffset = SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()) ).y();
+  double zOffset = SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()) ).z();
   if (!space_charge) {
 	  xOffset=0;
 	  yOffset=0;
@@ -361,9 +361,9 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	event_store->fstartT.push_back( thisMcp->T() );
 
 	//anatree recipe:
-        xOffset = 0.7 - SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z() )[0];
-        yOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z() )[1];
-        zOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z() )[2];
+  	xOffset = 0.7 - SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z())  ).x();
+ 	yOffset = SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()) ).y();
+  	zOffset = SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()) ).z();
 	if (!space_charge) {
 		xOffset = 0;
 		yOffset = 0;
@@ -374,9 +374,9 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	event_store->fstart_z.push_back ( thisMcp->Position().Z() + zOffset );
 	
 	if (space_charge) {
-        xOffset = 0.7 - SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z() )[0];
-        yOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z() )[1];
-        zOffset = SCE->GetPosOffsets( thisMcp->Position().X(),  thisMcp->Position().Y(), thisMcp->Position().Z() )[2];
+  	xOffset = 0.7 - SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z())  ).x();
+ 	yOffset = SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()) ).y();
+  	zOffset = SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()) ).z();
 	}
 	event_store->fend_x.push_back ( thisMcp->EndPosition().X() + xOffset );
 	event_store->fend_y.push_back ( thisMcp->EndPosition().Y() + yOffset );

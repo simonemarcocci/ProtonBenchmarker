@@ -7,13 +7,10 @@
 #include "lardataobj/RecoBase/Vertex.h"
 #include "lardataobj/AnalysisBase/FlashMatch.h"
 
-#include "uboone/ProtonBenchmarker/Datatypes/StoredEvent.h"
+#include "ubana/ProtonBenchmarker/Datatypes/StoredEvent.h"
 
 #include "nusimdata/SimulationBase/MCParticle.h"
 
-#include "uboone/UBXSec/DataTypes/UBXSecEvent.h"
-
-#include "uboone/UBXSec/DataTypes/SelectionResult.h"
 
 
 #include <vector>

@@ -12,11 +12,12 @@ link_libraries( ${LIB_NAME} -L$ENV{BOOST_LIB} -lboost_system ${ROOTLIB} )
 art_make( BASENAME_ONLY
           LIBRARY_NAME     ubana_ProtonBenchmarker_Algos
           LIB_LIBRARIES
+	    cetlib cetlib_except
             larcore_Geometry_Geometry_service
             SignalShapingServiceMicroBooNE_service
             larevt_CalibrationDBI_IOVData
             larevt_CalibrationDBI_Providers
-	    larsim_MCCheater_BackTracker_service
+	    larsim_MCCheater_BackTrackerService_service
             larsim_Simulation
             lardataobj_RawData
             lardataobj_RecoBase
@@ -35,11 +36,11 @@ art_make( BASENAME_ONLY
             ${ART_FRAMEWORK_SERVICES_REGISTRY}
             ${ART_FRAMEWORK_SERVICES_OPTIONAL}
             ${ART_FRAMEWORK_SERVICES_OPTIONAL_TFILESERVICE_SERVICE}
-            art_Persistency_Common
+            art_Persistency_Common canvas
 	    #canvas_Persistency_Common
-            art_Persistency_Provenance 
+            art_Persistency_Provenance canvas
 	    #canvas_Persistency_Provenance
-            art_Utilities 
+            art_Utilities canvas
 	    #canvas_Utilities
             ${ART_PERSISTENCY_COMMON}
             ${ART_PERSISTENCY_PROVENANCE}
@@ -54,14 +55,12 @@ art_make( BASENAME_ONLY
             ${ROOT_BASIC_LIB_LIST}
 
   MODULE_LIBRARIES
-            uboonecode_uboone_ProtonBenchmarker_Algos
+            ubana_ProtonBenchmarker_Algos
 	    larsim_MCCheater_BackTrackerService_service
             larpandora_LArPandoraInterface
             #                   larpandora_LArPandoraContent
           
-            uboone_UBFlashFinder
-          
-            uboone_RawData
+	    cetlib cetlib_except
             SignalShapingServiceMicroBooNE_service
             larevt_CalibrationDBI_IOVData
             larevt_CalibrationDBI_Providers

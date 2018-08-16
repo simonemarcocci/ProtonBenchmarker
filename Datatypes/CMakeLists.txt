@@ -10,7 +10,6 @@ link_libraries( ${LIB_NAME} -L$ENV{BOOST_LIB} -lboost_system ${ROOTLIB} )
 art_make( BASENAME_ONLY
 	  LIBRARY_NAME     ubana_ProtonBenchmarker_Datatypes
           LIB_LIBRARIES
-	  	   larcore_Geometry
 		   larcore_Geometry_Geometry_service
                    lardataobj_RawData
 		   lardataobj_RecoBase
@@ -28,9 +27,9 @@ art_make( BASENAME_ONLY
 		   ${ART_FRAMEWORK_SERVICES_REGISTRY}
 		   ${ART_FRAMEWORK_SERVICES_OPTIONAL}
 		   ${ART_FRAMEWORK_SERVICES_OPTIONAL_TFILESERVICE_SERVICE}
-                   art_Persistency_Common canvas_Persistency_Common
-                   art_Persistency_Provenance canvas_Persistency_Provenance
-                   art_Utilities canvas_Utilities
+                   art_Persistency_Common 
+                   art_Persistency_Provenance 
+                   art_Utilities 
                    ${ART_PERSISTENCY_COMMON}
 		   ${ART_PERSISTENCY_PROVENANCE}
 		   ${ART_UTILITIES}

@@ -16,12 +16,12 @@
 #include <numeric>
 #include <vector>
 #include <functional>
-#include <stdexcept>
 #include <cmath>
 #include <algorithm>
 
+#include "cetlib_except/exception.h"
 //ProtonBenchmarker includes
-#include "uboone/ProtonBenchmarker/Datatypes/StoredEvent.h"
+#include "ubana/ProtonBenchmarker/Datatypes/StoredEvent.h"
 
 namespace reco_histo{
 

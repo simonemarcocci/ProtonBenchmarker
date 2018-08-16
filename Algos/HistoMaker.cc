@@ -611,10 +611,12 @@ void HistoMaker::Fill_Hit_Histos( StoredEvent* event_store ) {
 	   //tracked particle, with a non-clustered hit
 	   if ( event_store->fis_tracked[jj] ) {  //check and fill histos for a MCP which is tracked
 	   	h_hits_not_clustered_tracked_charge->Fill ( event_store->fnot_clustered_tracked_charge[jj].at(z) );
-		if (jj==unsigned(fmuon_pos)) //is muon
+			
+		if (jj==unsigned(fmuon_pos)) {//is muon
 			h_hits_not_clustered_tracked_charge_muon->Fill ( event_store->fnot_clustered_tracked_charge[jj].at(z) );
-		else if (event_store->fpdg[jj] == 2212) //is proton
+		} else if (event_store->fpdg[jj] == 2212) {//is proton
 			h_hits_not_clustered_tracked_charge_proton->Fill ( event_store->fnot_clustered_tracked_charge[jj].at(z) );
+		}
 		        
 		        if (event_store->fis_spacepoint[jj].at( event_store->fnot_clustered_hit_index[jj].at(z) )) { //remember: jj indexes the mcp and z the hit
 			h_tracked_not_clustered_distance_nuvtx->Fill( sqrt( pow( event_store->fspacepoint_xyz[jj].at( event_store->fnot_clustered_hit_index[jj].at(z) )[0] - event_store->fneutrino_x,2) 

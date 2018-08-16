@@ -24,8 +24,8 @@
 #include "TTree.h"
 
 //local
-#include "uboone/ProtonBenchmarker/Algos/HistoMaker.h"
-#include "uboone/ProtonBenchmarker/Datatypes/StoredEvent.h"
+#include "ubana/ProtonBenchmarker/Algos/HistoMaker.h"
+#include "ubana/ProtonBenchmarker/Datatypes/StoredEvent.h"
 
 namespace recohelper {
 class HistoAnalysis;
