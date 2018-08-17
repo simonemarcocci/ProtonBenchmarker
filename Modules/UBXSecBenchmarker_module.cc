@@ -327,7 +327,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 
   if (!fIsData) { //save MCtruth stuff if it's MC 
 
-  //loop on all MC truth frames (mostly 1 per event)
+  //loop on all MC truth frames (mostly 1 per event) - and there is one neutrino per event, if cosmics, skip
   for ( unsigned n_truth = 0; n_truth < mcTruth.size(); n_truth++ ) {
 	  //std::cout << ">>>>>>>>>>>>>>>>>EVENT" << std::endl; 
    
@@ -363,7 +363,6 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 
   // first loop muons to find true neutrino induced muon (NIM)
   for (unsigned i = 0; i < MCpFromMCtruth->at(n_truth).size();i++){
-  //for ( auto const& thisMcp : mcList ){
     const art::Ptr< simb::MCParticle >& thisMcp = MCpFromMCtruth->at(n_truth).at(i);
     if (std::abs(thisMcp->PdgCode()) == 13 && thisMcp->StatusCode()==1 && thisMcp->Mother()==0 && thisMcp->Process() == "primary" && _pbutilInstance.isInTPC(thisMcp) == true) {
       muon_p = thisMcp->Momentum().Rho();
@@ -384,7 +383,6 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
  
   //now other MC particles
   for (unsigned i = 0; i < MCpFromMCtruth->at(n_truth).size(); i++){
-  //for ( auto const& thisMcp : mcList ){
   const art::Ptr< simb::MCParticle >& thisMcp = MCpFromMCtruth->at(n_truth).at(i);
     
     //in case of NC, the neutrino is kept and thus we should drop it
@@ -513,7 +511,10 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
    if ( fWriteHistograms ) 
    histo_maker->Fill_Truth_Histos( event_store );
 
-  }//fIsData
+  }//MC Truth
+  } else {//is data
+  event_store->ClearVectors(); //clear vectors from previous iteration
+  }
 
   //----------------------------
   // Tracks
@@ -522,13 +523,13 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   //I can't use thisTrack->ID() as index, because in case of Kalman Fitter failure, there could be mismatches between the number
   //of elements in the associations and the track index. So I need to index manually. 
   //There is an additional crosscheck for which the trackID must be increasing in the loop, just to be sure that nothing nasty is happening.
-  int track_id_counter = 0;
   int previous_track_id = -1;
   double previous_track_length = -1;
   TVector3 muon_dir;
 
   //int all_hits_tracks = 0;
   // loop tracks and do truth matching 
+  std:: cout << ">>>>LOOPING over " << trackList.size() << " tracks " << std::endl;
   for (auto const& thisTrack : trackList) {
   bool is_muon = false;
    
@@ -539,7 +540,9 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
    
     if ( fIsData) { //do less things if it is data
  	event_store->AllocateRecoVectors(); //allocate the vectors first for this track
+
     	event_store->fis_tracked[ &thisTrack - &trackList[0] ] = true;
+	event_store->freco_ismuon[ &thisTrack - &trackList[0] ] = false;
 	event_store->fmatch_multiplicity[ &thisTrack - &trackList[0] ] = event_store->fmatch_multiplicity[ &thisTrack - &trackList[0] ] + 1;
 	event_store->flength_reco[ &thisTrack - &trackList[0] ] = thisTrack->Length();
 	trkf::TrackMomentumCalculator trkm; //track momentum calculator
@@ -562,7 +565,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 		is_muon = true;
 		event_store->freco_ismuon[ &thisTrack - &trackList[0] ] = true;
 		muon_dir.SetXYZ( this_vector.x(), this_vector.y(), this_vector.z() );
-		for ( unsigned ijk = 0; ijk< &thisTrack - &trackList[0] - 1; ijk++) {
+		for ( int ijk = 0; ijk< int(&thisTrack - &trackList[0]); ijk++) {
 			event_store->freco_ismuon[ijk] = false; //set to false the previous muon which is now being overwritten
 			event_store->freco_costheta_muon[ijk] =  this_vector.Dot ( event_store->freco_start_direction[ijk]); //recompute costheta_muon reco'ed
 		}
@@ -570,7 +573,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
         
 	//check association of hits <-> tracks
 	//nhits from track
-	std::vector< art::Ptr < recob::Hit> > hits_tracks = hitsFromTracks.at( track_id_counter );
+	std::vector< art::Ptr < recob::Hit> > hits_tracks = hitsFromTracks.at( &thisTrack - &trackList[0] );
 	event_store->freco_track_hits[ &thisTrack - &trackList[0] ] = hits_tracks.size() ;
 
 	//loop over hits, and save some information for collection hits only (for now)
@@ -677,7 +680,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	if (thisMcp->PdgCode() == 13 )  //for the muon, only when there is the info
 		is_muon = true;
 	
-	std::vector< art::Ptr < recob::Hit> > hits_tracks = hitsFromTracks.at( track_id_counter );
+	std::vector< art::Ptr < recob::Hit> > hits_tracks = hitsFromTracks.at( &thisTrack - &trackList[0] );
 	event_store->freco_track_hits[pos] = hits_tracks.size() ;
 	//loop over hits, and save some information for collection hits only (for now)
 	int n_collection_hits = 0;
@@ -711,15 +714,12 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	event_store->fmuon_range = calos.at( geo::kCollection )->Range();
 	}
     
-
-        
-        track_id_counter++;
   }//Tracks
+
   
 
   //checks on showers
   //I am indexing showers manually because I am lazy and I am copying what I did for tracks
-  int shower_id_counter = 0;
   int previous_shower_id = -1;
   std::vector<int> mcp_showers_ids;
 
@@ -789,7 +789,6 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
  	
     }//MCParticle
         
-        shower_id_counter++;
   }//Shower
 
   } //fIsData	
@@ -1078,8 +1077,6 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   } // good muon
 
   recoTree->Fill();
-  } //MCtruth
-  
 
 }
 

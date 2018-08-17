@@ -24,14 +24,10 @@ void HistoMaker::Init( art::ServiceHandle< art::TFileService > tfs ) {
    hmuon_proton_tracked = tfs->make<TH1D>("muon_proton_tracked","Reco Proton Start - Reco Muon Start;Proton-Muon (cm);",1000,0,50); //displacement between reco muon start position and proton reco start position
    hmuon_spectrum = tfs->make<TH1D>("muon_spectrum","Muon kinetic energy; Kinetic Energy (GeV);",1000,0,5); //reco muons
    hmuon_spectrum_all = tfs->make<TH1D>("muon_spectrum_all","Muon kinetic energy; Kinetic Energy (GeV);",1000,0,5); //all of them, not just reco
-   hmuon_length = tfs->make<TH1D>("muon_length","Muon length; True Length (cm);",1000,0,1000); //reco muons
-   hmuon_length_all = tfs->make<TH1D>("muon_length_all","Muon length; True Length (cm);",1000,0,1000); //all of them, not just reco
    hproton_kinE = tfs->make<TH1D>("proton_kinE","Proton reco efficiency; Kinetic Energy (GeV)",1000,0,2); //reco efficiency protons vs kin E
    hproton_kinE_all = tfs->make<TH1D>("proton_kinE_all","Proton reco efficiency; Kinetic Energy (GeV)",1000,0,2); //reco efficiency protons vs kin E
    hproton_p = tfs->make<TH1D>("proton_p","Proton reco efficiency; Momentum (GeV/c)",1000,0,10); //reco efficiency protons vs p
    hproton_p_all = tfs->make<TH1D>("proton_p_all","Proton reco efficiency; Momentum (GeV/c)",1000,0,10); //reco efficiency protons vs p
-   hproton_l = tfs->make<TH1D>("proton_l","Proton reco efficiency; True length (cm)",1000,0,200); //reco efficiency protons vs p
-   hproton_l_all = tfs->make<TH1D>("proton_l_all","Proton reco efficiency; True length (cm)",1000,0,200); //reco efficiency protons vs p
    
    hproton_kinE_tracked_angle1 = tfs->make<TH1D>("proton_kinE_tracked_angle1","Proton reco efficiency when #mu-p angle is <30degree; Kinetic Energy (GeV)",1000,0,2); //reco efficiency protons vs kin E
    hproton_kinE_all_angle1 = tfs->make<TH1D>("proton_kinE_all_angle1","Proton reco efficiency when #mu-p angle is <30degree; Kinetic Energy (GeV)",1000,0,2); //reco efficiency protons vs kin E
@@ -51,11 +47,8 @@ void HistoMaker::Init( art::ServiceHandle< art::TFileService > tfs ) {
    hproton_nhits_all_angle2 = tfs->make<TH1D>("proton_nhits_all_angle2","Proton reco efficiency when #mu-p angle is <60 && > 30degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
    hproton_nhits_tracked_angle3 = tfs->make<TH1D>("proton_nhits_tracked_angle3","Proton reco efficiency when #mu-p angle is >60degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
    hproton_nhits_all_angle3 = tfs->make<TH1D>("proton_nhits_all_angle3","Proton reco efficiency when #mu-p angle is >60degree; nhits",1000,0,1000); //reco efficiency protons vs kin E
+   } 
    
-   hproton_nhits = tfs->make<TH1D>("proton_nhits","nhits for reco'ed protons; nhits",1000,0,1000); //reco efficiency protons vs kin E
-   hproton_nhits_CP = tfs->make<TH1D>("proton_nhits_CP","Collection Plane nhits for reco'ed protons; nhits",1000,0,1000); //reco efficiency protons vs kin E
-   hproton_nhits_all = tfs->make<TH1D>("proton_nhits_all","nhits for ALL protons; nhits",1000,0,1000); //reco efficiency protons vs kin E
-   hproton_nhits_CP_all = tfs->make<TH1D>("proton_nhits_CP_all","Collection Plane nhits for ALL protons; nhits",1000,0,1000); //reco efficiency protons vs kin E
    hproton_nhits_theta_mu = tfs->make<TH2D>("proton_nhits_theta_mu","Proton nhits vs angle with muon; nhits; #theta",1000,0,1000,100,0, 3.1415);
    hproton_nhits_CP_theta_mu = tfs->make<TH2D>("proton_nhits_CP_theta_mu","Proton collection plane nhits vs angle with muon; nhits; #theta",1000,0,1000,100,0, 3.1415);
    
@@ -67,7 +60,15 @@ void HistoMaker::Init( art::ServiceHandle< art::TFileService > tfs ) {
    h_theta_mu = tfs->make<TH1D>("theta_mu","Cos #theta between muon and protons;cos #theta",1000,-1,1); //true costheta between muon and protons
    h_theta_mu_length = tfs->make<TH2D>("theta_mu_length","Tracking efficiency vs (length, cos #theta_{p#mu});Cos #theta; l (cm)",1000,-1,1,1000,0,100);
    h_theta_mu_length_all = tfs->make<TH2D>("theta_mu_length_all","Tracking efficiency vs (length, cos #theta_{p#mu});Cos #theta; l (cm)",1000,-1,1,1000,0,100);
-   }
+   
+   hproton_nhits = tfs->make<TH1D>("proton_nhits","nhits for reco'ed protons; nhits",1000,0,1000); //reco efficiency protons vs kin E
+   hproton_nhits_CP = tfs->make<TH1D>("proton_nhits_CP","Collection Plane nhits for reco'ed protons; nhits",1000,0,1000); //reco efficiency protons vs kin E
+   hproton_nhits_all = tfs->make<TH1D>("proton_nhits_all","nhits for ALL protons; nhits",1000,0,1000); //reco efficiency protons vs kin E
+   hproton_nhits_CP_all = tfs->make<TH1D>("proton_nhits_CP_all","Collection Plane nhits for ALL protons; nhits",1000,0,1000); //reco efficiency protons vs kin E
+   hproton_l = tfs->make<TH1D>("proton_l","Proton reco efficiency; True length (cm)",1000,0,200); //reco efficiency protons vs p
+   hproton_l_all = tfs->make<TH1D>("proton_l_all","Proton reco efficiency; True length (cm)",1000,0,200); //reco efficiency protons vs p
+   hmuon_length = tfs->make<TH1D>("muon_length","Muon length; True Length (cm);",1000,0,1000); //reco muons
+   hmuon_length_all = tfs->make<TH1D>("muon_length_all","Muon length; True Length (cm);",1000,0,1000); //all of them, not just reco
    h_dqdx_merged = tfs->make<TH2D>("dqdx_merged","dq/dx for events with at least a merged proton; Distance from vertex (cm); dq/dx (ADC)",2500,0,250,1500,0,1500);
    h_dqdx_not_merged = tfs->make<TH2D>("dqdx_not_merged","dq/dx for events with no merged proton; Distance from vertex (cm); dq/dx (ADC)",2500,0,250,1500,0,1500);
    h_dqdx_low_protons = tfs->make<TH2D>("dqdx_low_protons","dq/dx for events with low E proton; Distance from vertex (cm); dq/dx (ADC)",2500,0,250,1500,0,1500);
@@ -75,6 +76,10 @@ void HistoMaker::Init( art::ServiceHandle< art::TFileService > tfs ) {
    h_dqdx_1d_not_merged = tfs->make<TH1D>("dqdx_1d_not_merged","dq/dx integrated in (0,8cm) when protons are not merged; dq/dx (ADC);",1500,0,1500);
    h_dqdx_tailtotot_length_merged = tfs->make<TH2D>("dqdx_tailtotot_length_merged","Tail to tot vs length for merged tracks; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
    h_dqdx_tailtotot_length_not_merged = tfs->make<TH2D>("dqdx_tailtotot_length_not_merged","Tail to tot vs length for merged tracks; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
+   h_dqdx_tailtotot_length_merged_window = tfs->make<TH2D>("dqdx_tailtotot_length_merged_window","Tail to tot vs length for merged tracks w/ 1cm moving window; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
+   h_dqdx_tailtotot_length_not_merged_window = tfs->make<TH2D>("dqdx_tailtotot_length_not_merged_window","Tail to tot vs length for merged tracks w/ 1cm moving window; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
+   h_dqdx_tailtotot_length_window = tfs->make<TH2D>("dqdx_tailtotot_length_window","Tail to tot vs length for all tracks w/ 1cm moving window; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
+   h_dqdx_tailtotot_length = tfs->make<TH2D>("dqdx_tailtotot_length","Tail to tot vs length for all tracks; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
    htail_to_tot_low_protons = tfs->make<TH1D>("tailtotot_low_protons","Tail to tot w/ low energy protons; Tail to tot;",1000,0,1); // tail to tot merged
    htail_to_tot_merged = tfs->make<TH1D>("tailtotot_merged","Tail to tot w/ merged protons; Tail to tot;",100,0,100); // tail to tot merged
    htail_to_tot_not_merged = tfs->make<TH1D>("tailtotot_not_merged","Tail to tot w/ good protons; Tail to tot;",100,0,100); // tail to tot not merged
@@ -613,18 +618,22 @@ void HistoMaker::Fill_Analysis_Histos_Data( StoredEvent* event_store, int & muon
     
             hproton_l_all->Fill( event_store->flength_reco[i] );
 	    hproton_l->Fill( event_store->flength_reco[i] );
-   	    hproton_nhits_all->Fill( event_store->fnhits[i] );
+   	    hproton_nhits_all->Fill( event_store->freco_track_hits[i] );
    	    hproton_nhits_CP_all->Fill( event_store->freco_mcp_collection_hits[i] );
-   	    hproton_nhits->Fill( event_store->fnhits[i] );
+   	    hproton_nhits->Fill( event_store->freco_track_hits[i] );
    	    hproton_nhits_CP->Fill( event_store->freco_mcp_collection_hits[i] );
   	 
 	    h_theta_mu->Fill( event_store->freco_costheta_muon[i] );	
 	    h_pmu_end_tracked->Fill( event_store->flength_reco[i] * sqrt( 1 - pow( event_store->freco_costheta_muon[i] ,2 ) ) ) ;
 	    h_theta_mu_tracked->Fill ( event_store->freco_costheta_muon[i] ) ;
-
+	}
+    }
+	
+    	if ( event_store->fmuon_residual.size()!=0 ) {
 	if ( event_store->fmuon_residual.size() != event_store->fmuon_dqdx.size()) std::cout << "ERROR on calorimetry vector sizes!!!" << std::endl;
 		for (unsigned jj=1; jj<event_store->fmuon_dqdx.size()-1; jj++) {
 				if ( event_store->fmuon_range - event_store->fmuon_residual[jj] < 8 ) { //look at 8cm only
+				std::cout << "ENTRIES " << h_dqdx_1d_not_merged->GetEntries() << std::endl;
 				h_dqdx_1d_not_merged->Fill(event_store->fmuon_dqdx[jj]);
 				}
 
@@ -648,21 +657,39 @@ void HistoMaker::Fill_Analysis_Histos_Data( StoredEvent* event_store, int & muon
 		if (h1)
 		htail_to_tot_merged->Fill( h1->Integral(low_edge,high_edge) );
 		h_dqdx_merged_service->Reset();
-
 	}
-    }
-		    
+
 }//end fill analysis histos data
 
 
 void HistoMaker::FillCumulativeHistograms() {
 
+
     for (long ii=1; ii<1000;ii++) {
+    int start_window = (ii-80) >=1 ? (ii-80) : 1;//units are mm
     TH1D* h = h_dqdx_not_merged->ProjectionY("h",1,ii);
     h_dqdx_tailtotot_length_not_merged->Fill(  ii, h->Integral(low_edge,high_edge)/h->Integral(1,high_edge) );
+    h = h_dqdx_not_merged->ProjectionY("h",start_window,ii);
+    h_dqdx_tailtotot_length_not_merged_window->Fill(  ii, h->Integral(low_edge,high_edge)/h->Integral(1,high_edge) );
+    
     h = h_dqdx_merged->ProjectionY("h",1,ii);
     h_dqdx_tailtotot_length_merged->Fill(  ii,  h->Integral(low_edge,high_edge)/h->Integral(1,high_edge));
+    h = h_dqdx_merged->ProjectionY("h",start_window,ii);
+    h_dqdx_tailtotot_length_merged_window->Fill(  ii,  h->Integral(low_edge,high_edge)/h->Integral(1,high_edge));
+    
+    h = h_dqdx_merged->ProjectionY("h",1,ii);
+    h->Add( h_dqdx_not_merged->ProjectionY("h",1,ii) );
+    h_dqdx_tailtotot_length->Fill(  ii, h->Integral(low_edge,high_edge)/h->Integral(1,high_edge) );
+    h = h_dqdx_merged->ProjectionY("h",start_window,ii);
+    h->Add( h_dqdx_not_merged->ProjectionY("h",start_window,ii) );
+    h_dqdx_tailtotot_length_window->Fill(  ii, h->Integral(low_edge,high_edge)/h->Integral(1,high_edge) );
     }
+
+}
+
+
+void recohelper::RecoBenchmarker::AllocateRecoVectors() {
+	fis_tracked.push_back(false);
 
 }
 

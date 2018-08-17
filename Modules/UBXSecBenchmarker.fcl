@@ -10,7 +10,7 @@ UBXSecBenchmarker: {
       MCTruthLabel: "generator"
       G4TruthLabel: "largeant"
       ShowerLabel:  "pandoraNu::UBXSec"
-      CalorimetryLabel:  "pandoraNucali::UBXSec"
+      CalorimetryLabel:  "pandoraNucalo::UBXSec"
       ShowerTruthLabel: "pandoraNu::UBXSec"
       HitLabel: "pandoraCosmicHitRemoval::UBXSec"
       IsVertexFitter: false
