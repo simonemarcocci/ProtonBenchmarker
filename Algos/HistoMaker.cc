@@ -73,6 +73,10 @@ void HistoMaker::Init( art::ServiceHandle< art::TFileService > tfs ) {
    h_dqdx_1d_not_merged = tfs->make<TH1D>("dqdx_1d_not_merged","dq/dx integrated in (0,8cm) when protons are not merged; dq/dx (ADC);",1500,0,1500);
    h_dqdx_tailtotot_length_merged = tfs->make<TH2D>("dqdx_tailtotot_length_merged","Tail to tot vs length for merged tracks; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
    h_dqdx_tailtotot_length_not_merged = tfs->make<TH2D>("dqdx_tailtotot_length_not_merged","Tail to tot vs length for merged tracks; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
+   h_dqdx_tailtotot_length_merged_window = tfs->make<TH2D>("dqdx_tailtotot_length_merged_window","Tail to tot vs length for merged tracks w/ 1cm moving window; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
+   h_dqdx_tailtotot_length_not_merged_window = tfs->make<TH2D>("dqdx_tailtotot_length_not_merged_window","Tail to tot vs length for merged tracks w/ 1cm moving window; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
+   h_dqdx_tailtotot_length_window = tfs->make<TH2D>("dqdx_tailtotot_length_window","Tail to tot vs length for all tracks w/ 1cm moving window; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
+   h_dqdx_tailtotot_length = tfs->make<TH2D>("dqdx_tailtotot_length","Tail to tot vs length for all tracks; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
    htail_to_tot_low_protons = tfs->make<TH1D>("tailtotot_low_protons","Tail to tot w/ low energy protons; Tail to tot;",1000,0,1); // tail to tot merged
    htail_to_tot_merged = tfs->make<TH1D>("tailtotot_merged","Tail to tot w/ merged protons; Tail to tot;",100,0,100); // tail to tot merged
    htail_to_tot_not_merged = tfs->make<TH1D>("tailtotot_not_merged","Tail to tot w/ good protons; Tail to tot;",100,0,100); // tail to tot not merged
@@ -586,15 +590,28 @@ if (count_not_tracked && isVerbose) {
 
 void HistoMaker::FillCumulativeHistograms() {
 
+
     for (long ii=1; ii<1000;ii++) {
+    int start_window = (ii-80) >=1 ? (ii-80) : 1;//units are mm
     TH1D* h = h_dqdx_not_merged->ProjectionY("h",1,ii);
     h_dqdx_tailtotot_length_not_merged->Fill(  ii, h->Integral(low_edge,high_edge)/h->Integral(1,high_edge) );
+    h = h_dqdx_not_merged->ProjectionY("h",start_window,ii);
+    h_dqdx_tailtotot_length_not_merged_window->Fill(  ii, h->Integral(low_edge,high_edge)/h->Integral(1,high_edge) );
+    
     h = h_dqdx_merged->ProjectionY("h",1,ii);
     h_dqdx_tailtotot_length_merged->Fill(  ii,  h->Integral(low_edge,high_edge)/h->Integral(1,high_edge));
+    h = h_dqdx_merged->ProjectionY("h",start_window,ii);
+    h_dqdx_tailtotot_length_merged_window->Fill(  ii,  h->Integral(low_edge,high_edge)/h->Integral(1,high_edge));
+    
+    h = h_dqdx_merged->ProjectionY("h",1,ii);
+    h->Add( h_dqdx_not_merged->ProjectionY("h",1,ii) );
+    h_dqdx_tailtotot_length->Fill(  ii, h->Integral(low_edge,high_edge)/h->Integral(1,high_edge) );
+    h = h_dqdx_merged->ProjectionY("h",start_window,ii);
+    h->Add( h_dqdx_not_merged->ProjectionY("h",start_window,ii) );
+    h_dqdx_tailtotot_length_window->Fill(  ii, h->Integral(low_edge,high_edge)/h->Integral(1,high_edge) );
     }
 
 }
-
 
 void HistoMaker::Fill_Hit_Histos( StoredEvent* event_store ) {
   
