@@ -687,13 +687,6 @@ void HistoMaker::FillCumulativeHistograms() {
 
 }
 
-
-void recohelper::RecoBenchmarker::AllocateRecoVectors() {
-	fis_tracked.push_back(false);
-
-}
-
-
 void HistoMaker::Fill_Hit_Histos( StoredEvent* event_store ) {
   
   if (!is_init_hit) {
