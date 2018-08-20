@@ -8,7 +8,7 @@ process_name: protonbenchmarker
 services:
 {
 
-  TFileService:   {fileName: "protonInformation.root"}
+  TFileService:   {fileName: "protonInformation_consolidated.root"}
   TimeTracker:    @local::microboone_time_tracker
   MemoryTracker:  @local::microboone_memory_tracker
   @table::microboone_simulation_services
@@ -41,6 +41,7 @@ physics.analyzers.pandora.HitAssnTruthLabel: "pandoraTruthMatch"
 physics.analyzers.pandora.CalorimetryLabel: "pandoracalo"
 physics.analyzers.pandora.HitLabel: "gaushit"
 physics.analyzers.pandora.IsConsolidated: true
+physics.analyzers.pandora.IsVertexFitter: false
 
 services.DetectorClocksService.InheritClockConfig: false
 services.SpaceCharge.EnableCorrSCE: true

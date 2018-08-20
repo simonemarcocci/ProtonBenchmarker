@@ -227,6 +227,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   	art::fill_ptr_vector( pfpList, pfpHandle);
   }
 
+
   art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromTracks(trackList, e, fTrackTruthLabel);
   art::FindManyP<anab::Calorimetry> caloFromTracks(trackList, e, fCalorimetryLabel);
   art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromShowers(showerList, e, fShowerTruthLabel);
@@ -306,8 +307,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   double zOffset = SCE->GetPosOffsets( geo::Point_t(thisNeutrino.Nu().Position().X(),  thisNeutrino.Nu().Position().Y(), thisNeutrino.Nu().Position().Z()) ).z();
   if (!space_charge) {
 	  xOffset=0;
-	  yOffset=0;
-	  zOffset=0;
+	  yOffset=0;  zOffset=0;
   }
   event_store->fneutrino_x = thisNeutrino.Nu().Position().X() + xOffset;
   event_store->fneutrino_y = thisNeutrino.Nu().Position().Y() + yOffset;
@@ -463,6 +463,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	event_store->freco_mcp_collection_hits[itt - event_store->fg4_id.begin() ] =  n_collection_hits ;
 	event_store->freco_mcp_collection_charge[itt - event_store->fg4_id.begin()] = total_hit_charge ;
 	}
+	hits_mcp.clear();
    }
 
    if ( fWriteHistograms ) 
@@ -591,10 +592,12 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	}
 	event_store->freco_track_collection_hits[pos] = n_collection_hits;
 	event_store->freco_track_collection_charge[pos] = total_hit_charge;
-	
+	hits_tracks.clear();	
     }//MCParticle
         
         track_id_counter++;
+	mcps.clear();
+	calos.clear();
   }//Tracks
 
 
@@ -660,6 +663,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
     }//MCParticle
         
         shower_id_counter++;
+	mcps.clear();
   }//Shower
 
 	
@@ -699,6 +703,8 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	  event_store->freco_vertex_x[ mc_pos ] = xyzz[0];
 	  event_store->freco_vertex_y[ mc_pos ] = xyzz[1];
 	  event_store->freco_vertex_z[ mc_pos ] = xyzz[2];
+	  vertex_pfp.clear();
+	  track_pfp.clear();
   }
 
   
@@ -747,6 +753,8 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	  //freco_vertexfitter_chi2[ mc_pos ] = vertexfitter_pfp[0]->chi2(); 
 	  event_store->freco_vertexfitter_chi2ndf[ mc_pos ] = -1; 
 	  event_store->freco_vertexfitter_chi2[ mc_pos ] = -1; 
+	  track_pfp.clear();
+	  vertexfitter_pfp.clear();
   }
   } //is vertex fitter
 
@@ -873,6 +881,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 			std::vector< art::Ptr <recob::PFParticle> > pfp_cluster = pfpFromCluster.at( &cluster - &clusterList[0] );
 			if (pfp_cluster.size()!=1) std::cout << "MORE THAN 1 PFP! size=" << pfp_cluster.size() << std::endl;
 			if ( pfp_cluster.size()!=0 ) pfp_id = pfp_cluster[0]->Self();
+			pfp_cluster.clear();
 			}
 			
 			//associate the pfp to the tracks
@@ -916,14 +925,17 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 		                      event_store->fclustered_mismatched_charge[mcp_index].push_back( hit->Integral() );
 				}
 			}
-			
+			pfp_track.clear();
+			mcp_track.clear();
 		} //tracklist
 	       }//is clustered
 	//is it clustered?
 	//is it attached to a track?
 	//are those the right track and the right cluster?
 	//check protons and merged protons
-
+			cluster_hits.clear();
+	mcparticle_hits.clear();
+	spacepoint_hits.clear();
   } // loop on hits
   
   //make hit plots
@@ -934,6 +946,18 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 
   recoTree->Fill();
   } //MCtruth
+
+  //clear memory
+  pfParticleMap.clear();
+  pfpList.clear();
+  trackList.clear();
+  showerList.clear();
+  mcList.clear();
+  mcTruth.clear();
+  clusterList.clear();
+  hitList.clear();
+  mcHitList.clear();
+  simChannelList.clear();
   
 
 }
@@ -983,8 +1007,8 @@ void recohelper::ProtonBenchmarker::GetFinalStatePFParticleVectors(const PFParti
 void recohelper::ProtonBenchmarker::CollectTracksAndShowers(const std::vector< art::Ptr<recob::PFParticle> > &particles, const art::FindManyP<recob::Track> pfPartToTrackAssoc, const art::FindManyP<recob::Shower> pfPartToShowerAssoc, std::vector< art::Ptr<recob::Track> > &tracks, std::vector< art::Ptr<recob::Shower> > &showers) {
    
     for (const art::Ptr<recob::PFParticle> &pParticle : particles) {
-        const std::vector< art::Ptr<recob::Track> > associatedTracks(pfPartToTrackAssoc.at(pParticle.key()));
-        const std::vector< art::Ptr<recob::Shower> > associatedShowers(pfPartToShowerAssoc.at(pParticle.key()));
+        const std::vector< art::Ptr<recob::Track> > associatedTracks( pfPartToTrackAssoc.at( &pParticle - &particles[0]) );
+        const std::vector< art::Ptr<recob::Shower> > associatedShowers( pfPartToShowerAssoc.at( &pParticle - &particles[0] ) );
         const unsigned int nTracks(associatedTracks.size());
         const unsigned int nShowers(associatedShowers.size());
 
