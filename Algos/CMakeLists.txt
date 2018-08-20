@@ -10,7 +10,7 @@ set( ROOTLIB -L$ENV{ROOTSYS}/lib -lCore -lRIO -lNet -lHist -lGraf -lGraf3d -lGpa
 link_libraries( ${LIB_NAME} -L$ENV{BOOST_LIB} -lboost_system ${ROOTLIB} )
 
 art_make( BASENAME_ONLY
-          LIBRARY_NAME     ubana_ProtonBenchmarker_Algos
+          LIBRARY_NAME     uboonecode_uboone_ProtonBenchmarker_Algos
           LIB_LIBRARIES
 	    cetlib cetlib_except
             larcore_Geometry_Geometry_service
@@ -55,7 +55,7 @@ art_make( BASENAME_ONLY
             ${ROOT_BASIC_LIB_LIST}
 
   MODULE_LIBRARIES
-            ubana_ProtonBenchmarker_Algos
+            uboonecode_uboone_ProtonBenchmarker_Algos
 	    larsim_MCCheater_BackTrackerService_service
             larpandora_LArPandoraInterface
             #                   larpandora_LArPandoraContent

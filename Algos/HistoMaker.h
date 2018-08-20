@@ -21,7 +21,7 @@
 
 #include "cetlib_except/exception.h"
 //ProtonBenchmarker includes
-#include "ubana/ProtonBenchmarker/Datatypes/StoredEvent.h"
+#include "uboone/ProtonBenchmarker/Datatypes/StoredEvent.h"
 
 namespace reco_histo{
 
@@ -145,6 +145,10 @@ namespace reco_histo{
    TH1D* h_dqdx_1d_not_merged;
    TH2D* h_dqdx_tailtotot_length_merged;
    TH2D* h_dqdx_tailtotot_length_not_merged;
+   TH2D* h_dqdx_tailtotot_length_merged_window;
+   TH2D* h_dqdx_tailtotot_length_not_merged_window;
+   TH2D* h_dqdx_tailtotot_length_window;
+   TH2D* h_dqdx_tailtotot_length;
    TH1D* htail_to_tot_low_protons;
    TH1D* htail_to_tot_merged;
    TH1D* htail_to_tot_not_merged;

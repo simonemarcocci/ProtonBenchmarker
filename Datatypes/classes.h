@@ -7,7 +7,7 @@
 #include "lardataobj/RecoBase/Vertex.h"
 #include "lardataobj/AnalysisBase/FlashMatch.h"
 
-#include "ubana/ProtonBenchmarker/Datatypes/StoredEvent.h"
+#include "uboone/ProtonBenchmarker/Datatypes/StoredEvent.h"
 
 #include "nusimdata/SimulationBase/MCParticle.h"
 

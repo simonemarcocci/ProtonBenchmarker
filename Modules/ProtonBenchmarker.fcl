@@ -7,18 +7,19 @@ ProtonBenchmarker: {
       PfpAssnLabel:   "pandoraNu"
       ClusterLabel: "pandoraNu"
       TrackTruthLabel: "pandoraNuTruthMatch"
-      HitAssnTruthLabel: "crHitRemovalTruthMatch"
+      HitAssnTruthLabel: "pandoraNuTruthMatch"
       MCTruthLabel: "generator"
       G4TruthLabel: "largeant"
-      ShowerLabel:  "showerrecopandora"
+      ShowerLabel:  "pandoraNu"
       CalorimetryLabel:  "pandoraNucalo"
-      ShowerTruthLabel: "showerrecopandoraTruthMatch"
+      ShowerTruthLabel: "pandoraNuTruthMatch"
       HitLabel: "pandoraCosmicHitRemoval"
       MCHitLabel: "mchitfinder"
-      IsVertexFitter: false
+      IsVertexFitter: true
       VertexFitterLabel: "vertexfitterpandoraNu"
       WriteHistograms: true
       UBXSecInput: false
+      IsConsolidated: false
 }
 
 END_PROLOG

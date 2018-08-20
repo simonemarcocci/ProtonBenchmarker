@@ -6,13 +6,13 @@ set( ROOTLIB -L$ENV{ROOTSYS}/lib -lCore -lRIO -lNet -lHist -lGraf -lGraf3d -lGpa
 link_libraries( ${LIB_NAME} -L$ENV{BOOST_LIB} -lboost_system ${ROOTLIB})
 
 art_make( BASENAME_ONLY
-          LIBRARY_NAME ubana_ProtonBenchmarker
+          LIBRARY_NAME uboonecode_uboone_ProtonBenchmarker
           LIB_LIBRARIES
-            ubana_ProtonBenchmarker_Algos
-	    ubana_ProtonBenchmarker_Datatypes
+            uboonecode_uboone_ProtonBenchmarker_Algos
+	    uboonecode_uboone_ProtonBenchmarker_Datatypes
 	    larcorealg_Geometry
 	    larcorealg_GeoAlgo
-	    ubobj_UBXSec
+	    uboonecode_uboone_UBXSec_DataTypes
 	    ${PANDORASDK}
 	    ${PANDORAMONITORING}
 	    cetlib cetlib_except
@@ -21,9 +21,9 @@ art_make( BASENAME_ONLY
 	    cetlib cetlib_except
 	    larpandora_LArPandoraInterface
 	    LArPandoraContent
-            ubana_ProtonBenchmarker_Algos
-	    ubana_ProtonBenchmarker_Datatypes
-	    ubobj_UBXSec
+            uboonecode_uboone_ProtonBenchmarker_Algos
+	    uboonecode_uboone_ProtonBenchmarker_Datatypes
+	    uboonecode_uboone_UBXSec_DataTypes
             larcore_Geometry_Geometry_service
 	    larcorealg_Geometry
 	    larcorealg_GeoAlgo

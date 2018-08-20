@@ -76,7 +76,6 @@ void StoredEvent::AllocateRecoVectors() {
 
 
 void StoredEvent::ClearVectors(){
-    //info on the MC particle
     fmuon_dqdx.clear();
     fmuon_dedx.clear();
     fmuon_residual.clear();
@@ -101,9 +100,6 @@ void StoredEvent::ClearVectors(){
    fcostheta_muon.clear();
   fis_leading.clear();
   fparticle_count.clear();
-
-
-   //info coming from the tracking algorithm - when there is mc truth
   fis_tracked.clear();
   fis_shower_matched.clear();
   fmatch_multiplicity.clear();
@@ -123,8 +119,6 @@ void StoredEvent::ClearVectors(){
    fcompleteness.clear();
    fnhits.clear();
    fkinE.clear();
-  
-   //hits analysis
    freco_track_hits.clear();
    freco_track_collection_hits.clear();
    freco_track_collection_charge.clear();
@@ -135,20 +129,16 @@ void StoredEvent::ClearVectors(){
    fclustered.clear();
    fclustered_matched.clear();
    fclustered_mismatched.clear();
-
-   //delicate vectors
    for (unsigned ii=0; ii<fis_spacepoint.size(); ii++){
    	fis_spacepoint[ii].clear();
    	fspacepoint_xyz[ii].clear();
    }
-
    for (unsigned ii=0; ii<fnot_clustered_charge.size(); ii++) {
    fnot_clustered_hit_index[ii].clear();
    fnot_clustered_charge[ii].clear();
    fnot_clustered_tracked_charge[ii].clear();
    fnot_clustered_not_tracked_charge[ii].clear();
    }
-   
    for (unsigned ii=0; ii<fclustered_charge.size(); ii++) {
    fclustered_hit_index[ii].clear();
    fclustered_charge[ii].clear();
@@ -156,7 +146,6 @@ void StoredEvent::ClearVectors(){
    fclustered_mismatched_charge[ii].clear();
    fhit_mismatch_pdg[ii].clear();
    }
-   
    fnot_clustered_hit_index.clear();
    fclustered_hit_index.clear();
    fnot_clustered_charge.clear();
@@ -168,7 +157,6 @@ void StoredEvent::ClearVectors(){
    fclustered_matched_charge.clear();
    fclustered_mismatched_charge.clear();
    fhit_mismatch_pdg.clear();
-
 }
 
 

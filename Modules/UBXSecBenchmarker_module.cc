@@ -49,14 +49,14 @@
 #include <algorithm>
 
 // local includes
-#include "ubana/ProtonBenchmarker/Algos/protonBenchmarkerUtility.h"
-#include "ubana/ProtonBenchmarker/Algos/HistoMaker.h"
-#include "ubana/ProtonBenchmarker/Datatypes/StoredEvent.h"
+#include "uboone/ProtonBenchmarker/Algos/protonBenchmarkerUtility.h"
+#include "uboone/ProtonBenchmarker/Algos/HistoMaker.h"
+#include "uboone/ProtonBenchmarker/Datatypes/StoredEvent.h"
 
 //UBXSec includes
-#include "ubobj/UBXSec/SelectionResult.h"
-#include "ubobj/UBXSec/TPCObject.h"
-#include "ubobj/UBXSec/MCGhost.h"
+#include "uboone/UBXSec/DataTypes/SelectionResult.h"
+#include "uboone/UBXSec/DataTypes/TPCObject.h"
+#include "uboone/UBXSec/DataTypes/MCGhost.h"
 
 #define isDebug 0
 

@@ -47,6 +47,7 @@ namespace pbutil{
       float convertTicksToX(const recob::Hit& thisHit);
 
       bool isHitNearVertex(std::vector<float> v, std::vector<float> h);
+
   };
 
 }

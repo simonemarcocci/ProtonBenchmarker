@@ -46,6 +46,8 @@
 #include "larcorealg/Geometry/WireGeo.h"
 #include "lardataobj/MCBase/MCHitCollection.h"
 #include "larpandora/LArPandoraInterface/LArPandora.h"
+//#include "larpandora/LArPandoraObjects/PFParticleMetadata.h"
+#include "Pandora/PdgTable.h"
 
 // ROOT includes
 #include "TFile.h"
@@ -55,12 +57,12 @@
 #include <algorithm>
 
 // local includes
-#include "ubana/ProtonBenchmarker/Algos/protonBenchmarkerUtility.h"
-#include "ubana/ProtonBenchmarker/Algos/HistoMaker.h"
-#include "ubana/ProtonBenchmarker/Datatypes/StoredEvent.h"
+#include "uboone/ProtonBenchmarker/Algos/protonBenchmarkerUtility.h"
+#include "uboone/ProtonBenchmarker/Algos/HistoMaker.h"
+#include "uboone/ProtonBenchmarker/Datatypes/StoredEvent.h"
 
 //UBXSec includes
-#include "ubobj/UBXSec/SelectionResult.h"
+#include "uboone/UBXSec/DataTypes/SelectionResult.h"
 
 #define isDebug 1
 
@@ -73,6 +75,8 @@ namespace recohelper {
 
 class recohelper::ProtonBenchmarker : public art::EDAnalyzer {
   public:
+    typedef std::map< size_t, art::Ptr<recob::PFParticle> > PFParticleIdMap; 
+
     explicit ProtonBenchmarker(fhicl::ParameterSet const & p);
     // The compiler-generated destructor is fine for non-base
     // classes without bare pointers or other resource use.
@@ -89,6 +93,9 @@ class recohelper::ProtonBenchmarker : public art::EDAnalyzer {
     // Selected optional functions.
     void beginJob() override;
     void endJob() override;
+    void GetPFParticleIdMap(const art::ValidHandle< std::vector<recob::PFParticle> > &, PFParticleIdMap &);
+    void GetFinalStatePFParticleVectors(const PFParticleIdMap &, std::vector< art::Ptr<recob::PFParticle> > &, std::vector< art::Ptr<recob::PFParticle> > &);
+    void CollectTracksAndShowers(const std::vector< art::Ptr<recob::PFParticle> >&, const art::FindManyP<recob::Track>, const art::FindManyP<recob::Shower>, std::vector< art::Ptr<recob::Track> >&, std::vector< art::Ptr<recob::Shower> > &);
 
   private:
     // fcl input parameters
@@ -109,6 +116,7 @@ class recohelper::ProtonBenchmarker : public art::EDAnalyzer {
     std::string fMCHitLabel;
     bool 	fWriteHistograms;
     bool	fIsUBXSec;
+    bool	fIsConsolidated;
 
 
     pbutil::protonBenchmarkerUtility _pbutilInstance;
@@ -147,6 +155,7 @@ recohelper::ProtonBenchmarker::ProtonBenchmarker(fhicl::ParameterSet const & p)
   fHitLabel = p.get<std::string> ("HitLabel");
   fMCHitLabel = p.get<std::string> ("MCHitLabel");
   fIsUBXSec = p.get<bool> ("UBXSecInput");
+  fIsConsolidated = p.get<bool> ("IsConsolidated");
 
 }
 
@@ -164,10 +173,10 @@ void recohelper::ProtonBenchmarker::beginJob()
   histo_maker->Init_Hit(  hits_dir );
   }
 
-  //int bufsize    = 16000;
-  //int splitlevel = 99;
+  int bufsize    = 16000;
+  int splitlevel = 99;
   // define branches
-  recoTree->Branch("stored", &event_store); //, bufsize, splitlevel);
+  recoTree->Branch("stored", &event_store, bufsize, splitlevel);
 
   n_events = 0;
    
@@ -185,22 +194,43 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   event_store->fRun    = e.run();
   event_store->fSubRun = e.subRun();
 
+  //pandora MAP of PFPs and IDs
+ PFParticleIdMap pfParticleMap;
 
   // get handles to objects of interest
+ //pfps 
+ art::ValidHandle< std::vector< recob::PFParticle > > pfpHandle = 
+    e.getValidHandle< std::vector< recob::PFParticle > >(fPfpLabel);
+  std::vector< art::Ptr<recob::PFParticle> > pfpList;
+  
+  //get it only if is consolidated
+  if (fIsConsolidated)
+  this->GetPFParticleIdMap(pfpHandle, pfParticleMap);
+  
   art::ValidHandle< std::vector<recob::Track> > trackHandle = e.getValidHandle< std::vector<recob::Track> > (fTrackLabel);
   std::vector< art::Ptr<recob::Track> > trackList;
-  art::fill_ptr_vector(trackList, trackHandle); 
-
-  art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromTracks(trackHandle, e, fTrackTruthLabel);
-  
-  art::FindManyP<anab::Calorimetry> caloFromTracks(trackHandle, e, fCalorimetryLabel);
-
-  art::ValidHandle< std::vector<recob::Shower> > showerHandle =
-    e.getValidHandle< std::vector<recob::Shower> >(fShowerLabel);
+  art::ValidHandle< std::vector<recob::Shower> > showerHandle = e.getValidHandle< std::vector<recob::Shower> >(fShowerLabel);
   std::vector< art::Ptr<recob::Shower> >  showerList;  
-  art::fill_ptr_vector(showerList, showerHandle); 
+  
+  
+  std::vector< art::Ptr<recob::PFParticle> > crParticles;//cosmic ray particles - ignore for now
+  if (fIsConsolidated) {
+  	//get the nu PFPs
+	this->GetFinalStatePFParticleVectors(pfParticleMap, crParticles, pfpList);
+  	
+	art::FindManyP<recob::Track> trackFromPfp(pfpList, e, fPfpAssnLabel);
+	art::FindManyP<recob::Shower> showerFromPfp(pfpList, e, fPfpAssnLabel);
+	this->CollectTracksAndShowers( pfpList, trackFromPfp, showerFromPfp, trackList, showerList);
+  } else {
+  	art::fill_ptr_vector(trackList, trackHandle); 
+  	art::fill_ptr_vector(showerList, showerHandle); 
+  	art::fill_ptr_vector( pfpList, pfpHandle);
+  }
 
-  art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromShowers(showerHandle, e, fShowerTruthLabel);
+  art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromTracks(trackList, e, fTrackTruthLabel);
+  art::FindManyP<anab::Calorimetry> caloFromTracks(trackList, e, fCalorimetryLabel);
+  art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromShowers(showerList, e, fShowerTruthLabel);
+  art::FindManyP<recob::PFParticle> pfpFromTrack(trackList, e, fPfpAssnLabel);
 
   art::Handle< std::vector<simb::MCParticle> > mcParticleHandle; 
   std::vector< art::Ptr<simb::MCParticle> > mcList;
@@ -211,7 +241,6 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   std::vector< art::Ptr<simb::MCTruth> > mcTruth;
   if (e.getByLabel( fMCTruthLabel, mcTruthHandle))
     art::fill_ptr_vector(mcTruth, mcTruthHandle); 
- 
 
   // cluster/hit handles
   art::ValidHandle< std::vector< recob::Cluster > > clusterHandle = 
@@ -226,12 +255,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   std::vector< art::Ptr<recob::Hit> > hitList;
   art::fill_ptr_vector( hitList, hitHandle);
 
-  art::ValidHandle< std::vector< recob::PFParticle > > pfpHandle = 
-    e.getValidHandle< std::vector< recob::PFParticle > >(fPfpLabel);
-  std::vector< art::Ptr<recob::PFParticle> > pfpList;
-  art::fill_ptr_vector( pfpList, pfpHandle);
-
-  art::FindManyP<recob::Hit> hitsFromTracks( trackHandle, e, fTrackLabel);
+  art::FindManyP<recob::Hit> hitsFromTracks( trackList, e, fTrackLabel);
   art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData> MCPfromhits( hitHandle, e, fHitAssnTruthLabel);
   art::FindManyP<recob::Hit, anab::BackTrackerHitMatchingData> hitsFromMCP( mcParticleHandle, e, fHitAssnTruthLabel);
   
@@ -253,19 +277,13 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   art::FindManyP<simb::MCParticle> MCpFromMCtruth( mcTruth , e, fG4TruthLabel );
 
   //vertex stuff
-  art::FindManyP<recob::Vertex> vertexFromPfp(pfpHandle, e, fPfpLabel);
-  art::FindManyP<recob::Track> trackFromPfp(pfpHandle, e, fPfpAssnLabel);
+  art::FindManyP<recob::Vertex> vertexFromPfp(pfpList, e, fPfpLabel);
+  art::FindManyP<recob::Track> trackFromPfp(pfpList, e, fPfpAssnLabel);
   
 //hits associations
   art::FindManyP<recob::Cluster> clustersFromHits(hitHandle, e, fClusterLabel);
   art::FindManyP<recob::PFParticle> pfpFromCluster(clusterHandle, e, fClusterLabel);
-  art::FindManyP<recob::PFParticle> pfpFromTrack(trackHandle, e, fPfpAssnLabel);
   art::FindManyP<recob::SpacePoint> spacepointFromHits( hitHandle, e, fTrackLabel );
-
-
-
-
-
 
   //loop on all MC truth frames (mostly 1 per event)
   for ( unsigned n_truth = 0; n_truth < mcTruth.size(); n_truth++ ) {
@@ -689,7 +707,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   //----------------------------
  
   if (fIsVertexFitter) {
-  art::FindManyP<recob::Vertex> vertexfitterFromPfp(pfpHandle, e, fVertexFitterLabel);
+  art::FindManyP<recob::Vertex> vertexfitterFromPfp(pfpList, e, fVertexFitterLabel);
   
   //look for neutrino pfp
   neutrino_set = false;
@@ -920,7 +938,79 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 
 }
 
+void recohelper::ProtonBenchmarker::GetPFParticleIdMap(const art::ValidHandle< std::vector<recob::PFParticle> > &pfParticleHandle, recohelper::ProtonBenchmarker::PFParticleIdMap &pfParticleMap) {
+	
+	for (unsigned int i = 0; i < pfParticleHandle->size(); ++i){
+		const art::Ptr<recob::PFParticle> pParticle(pfParticleHandle, i);
+			if (!pfParticleMap.insert(PFParticleIdMap::value_type(pParticle->Self(), pParticle)).second){
+				throw cet::exception("ProtonBenchmarker::GetPFParticleIdMap") << "  Unable to get PFParticle ID map, the input PFParticle collection has repeat IDs!";
+			}
+	}
+}
 
+
+void recohelper::ProtonBenchmarker::GetFinalStatePFParticleVectors(const PFParticleIdMap &pfParticleMap, std::vector< art::Ptr<recob::PFParticle> > &crParticles, std::vector< art::Ptr<recob::PFParticle> > &nuParticles) {
+    for (PFParticleIdMap::const_iterator it = pfParticleMap.begin(); it != pfParticleMap.end(); ++it)  {
+        const art::Ptr<recob::PFParticle> pParticle(it->second);
+        // Only look for primary particles
+        if (!pParticle->IsPrimary()) continue;
+        // Check if this particle is identified as the neutrino
+        const int pdg(pParticle->PdgCode());
+        const bool isNeutrino(std::abs(pdg) == pandora::NU_E || std::abs(pdg) == pandora::NU_MU || std::abs(pdg) == pandora::NU_TAU);
+        // All non-neutrino primary particles are reconstructed under the cosmic hypothesis
+        if (!isNeutrino) {
+            crParticles.push_back(pParticle);
+            continue;
+        }
+
+        // ATTN. We are filling nuParticles under the assumption that there is only one reconstructed neutrino identified per event.
+        //       If this is not the case please handle accordingly
+        if (!nuParticles.empty()){
+            throw cet::exception("ProtonBenchmarker::GetFinalStatePFParticleVectors") << "  This event contains multiple reconstructed neutrinos!";
+        }
+
+        // Add the daughters of the neutrino PFParticle to the nuPFParticles vector
+        for (const size_t daughterId : pParticle->Daughters()){
+            if (pfParticleMap.find(daughterId) == pfParticleMap.end())
+                throw cet::exception("ProtonBenchmarker::GetFinalStatePFParticleVectors") << "  Invalid PFParticle collection!";
+
+            nuParticles.push_back(pfParticleMap.at(daughterId));
+        }
+    }
+}
+
+    
+void recohelper::ProtonBenchmarker::CollectTracksAndShowers(const std::vector< art::Ptr<recob::PFParticle> > &particles, const art::FindManyP<recob::Track> pfPartToTrackAssoc, const art::FindManyP<recob::Shower> pfPartToShowerAssoc, std::vector< art::Ptr<recob::Track> > &tracks, std::vector< art::Ptr<recob::Shower> > &showers) {
+   
+    for (const art::Ptr<recob::PFParticle> &pParticle : particles) {
+        const std::vector< art::Ptr<recob::Track> > associatedTracks(pfPartToTrackAssoc.at(pParticle.key()));
+        const std::vector< art::Ptr<recob::Shower> > associatedShowers(pfPartToShowerAssoc.at(pParticle.key()));
+        const unsigned int nTracks(associatedTracks.size());
+        const unsigned int nShowers(associatedShowers.size());
+
+        // Check if the PFParticle has no associated tracks or showers
+        if (nTracks == 0 && nShowers == 0)        {
+            mf::LogDebug("ConsolidatedPFParticleAnalysisTemplate") << "  No tracks or showers were associated to PFParticle " << pParticle->Self() << std::endl;
+            continue;
+        }
+
+        // Check if there is an associated track
+        if (nTracks == 1 && nShowers == 0){
+            tracks.push_back(associatedTracks.front());
+            continue;
+        }
+
+        // Check if there is an associated shower
+        if (nTracks == 0 && nShowers == 1){
+            showers.push_back(associatedShowers.front());
+            continue;
+        }
+
+        throw cet::exception("ConsolidatedPFParticleAnalysisTemplate") << "  There were " << nTracks << " tracks and " << nShowers << " showers associated with PFParticle " << pParticle->Self();
+    }
+}
+
+    
 void recohelper::ProtonBenchmarker::endJob()
 {
 
