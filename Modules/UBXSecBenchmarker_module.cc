@@ -158,8 +158,10 @@ void recohelper::UBXSecBenchmarker::beginJob()
   histo_maker->Init_Hit(  hits_dir );
   }
 
+  int bufsize    = 16000;
+  int splitlevel = 99;
   // define branches
-  recoTree->Branch("stored", &event_store);
+  recoTree->Branch("stored", &event_store, bufsize, splitlevel);
 
   n_events = 0;
 
@@ -1077,6 +1079,27 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   } // good muon
 
   recoTree->Fill();
+
+  //clear memory
+  if (!fIsData) {
+	  delete MCpFromMCtruth;
+	  delete MCPfromhits;
+	  delete hitsFromMCP;
+	  delete ghost_from_pfp;
+	  delete mcp_from_ghost;
+  }
+  selection_v.clear();
+  trackList.clear();
+  vertices.clear();
+  pfpList.clear();
+  showerList.clear();
+  ghostList.clear();
+  mcList.clear();
+  mcTruth.clear();
+  clusterList.clear();
+  hitList.clear();
+  all_tracks.clear();
+
 
 }
 
