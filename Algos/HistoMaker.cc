@@ -380,6 +380,7 @@ void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos,
 
     count_not_tracked = 0;
     count_tracked = 0;
+    low_protons = 0;
     is_lowmomentum_p = false;
     for (unsigned j=0; j<event_store->fpdg.size(); j++) {
 	    if ( !reco_muon ) break; //select events with a reco muon

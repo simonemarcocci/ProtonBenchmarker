@@ -510,7 +510,10 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
         << std::endl;
 #endif
     auto it_found = std::find( event_store->fg4_id.begin(), event_store->fg4_id.end(), thisMcp->TrackId() ) ;
-    if (it_found==event_store->fg4_id.end()) mf::LogError(__FUNCTION__) << "ERROR!!! Matched particle not found!" << std::endl;
+    if (it_found==event_store->fg4_id.end()) {
+	    mf::LogWarning(__FUNCTION__) << "ERROR!!! Matched particle not found!" << std::endl;
+	    continue;
+    }
     size_t pos = it_found - event_store->fg4_id.begin();
 
     //save information on reco track
@@ -636,7 +639,10 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
         << std::endl;
 #endif
     auto it_found = std::find( event_store->fg4_id.begin(), event_store->fg4_id.end(), thisMcp->TrackId() ) ;
-    if (it_found==event_store->fg4_id.end()) mf::LogError(__FUNCTION__) << "ERROR!!! Matched particle not found!" << std::endl;
+    if (it_found==event_store->fg4_id.end()) {
+	    mf::LogWarning(__FUNCTION__) << "ERROR!!! Matched particle not found!" << std::endl;
+	    continue;
+    }
     size_t pos = it_found - event_store->fg4_id.begin();
 	
 
