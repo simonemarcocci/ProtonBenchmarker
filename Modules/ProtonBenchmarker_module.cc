@@ -263,10 +263,6 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   art::FindManyP<recob::SpacePoint> spacepointFromHits( hitHandle, e, fTrackLabel );
 
 
-
-
-
-
   //loop on all MC truth frames (mostly 1 per event)
   for ( unsigned n_truth = 0; n_truth < mcTruth.size(); n_truth++ ) {
 	  //std::cout << ">>>>>>>>>>>>>>>>>EVENT" << std::endl; 
@@ -491,7 +487,10 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
         << std::endl;
 #endif
     auto it_found = std::find( event_store->fg4_id.begin(), event_store->fg4_id.end(), thisMcp->TrackId() ) ;
-    if (it_found==event_store->fg4_id.end()) mf::LogError(__FUNCTION__) << "ERROR!!! Matched particle not found!" << std::endl;
+    if (it_found==event_store->fg4_id.end()) {
+	    mf::LogWarning(__FUNCTION__) << "ERROR!!! Matched particle not found!" << std::endl;
+	    continue;
+    }
     size_t pos = it_found - event_store->fg4_id.begin();
 
     //save information on reco track
@@ -577,6 +576,8 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
     }//MCParticle
         
         track_id_counter++;
+	mcps.clear();
+	calos.clear();
   }//Tracks
 
 
@@ -615,7 +616,10 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
         << std::endl;
 #endif
     auto it_found = std::find( event_store->fg4_id.begin(), event_store->fg4_id.end(), thisMcp->TrackId() ) ;
-    if (it_found==event_store->fg4_id.end()) mf::LogError(__FUNCTION__) << "ERROR!!! Matched particle not found!" << std::endl;
+    if (it_found==event_store->fg4_id.end()) {
+	    mf::LogWarning(__FUNCTION__) << "ERROR!!! Matched particle not found!" << std::endl;
+	    continue;
+    }
     size_t pos = it_found - event_store->fg4_id.begin();
 	
 
@@ -642,6 +646,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
     }//MCParticle
         
         shower_id_counter++;
+	mcps.clear();
   }//Shower
 
 	
@@ -681,6 +686,8 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	  event_store->freco_vertex_x[ mc_pos ] = xyzz[0];
 	  event_store->freco_vertex_y[ mc_pos ] = xyzz[1];
 	  event_store->freco_vertex_z[ mc_pos ] = xyzz[2];
+	  vertex_pfp.clear();
+	  track_pfp.clear();
   }
 
   
@@ -729,6 +736,8 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	  //freco_vertexfitter_chi2[ mc_pos ] = vertexfitter_pfp[0]->chi2(); 
 	  event_store->freco_vertexfitter_chi2ndf[ mc_pos ] = -1; 
 	  event_store->freco_vertexfitter_chi2[ mc_pos ] = -1; 
+	  vertexfitter_pfp.clear();
+	  track_pfp.clear();
   }
   } //is vertex fitter
 
@@ -855,6 +864,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 			std::vector< art::Ptr <recob::PFParticle> > pfp_cluster = pfpFromCluster.at( &cluster - &clusterList[0] );
 			if (pfp_cluster.size()!=1) std::cout << "MORE THAN 1 PFP! size=" << pfp_cluster.size() << std::endl;
 			if ( pfp_cluster.size()!=0 ) pfp_id = pfp_cluster[0]->Self();
+			pfp_cluster.clear();
 			}
 			
 			//associate the pfp to the tracks
@@ -898,9 +908,11 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 		                      event_store->fclustered_mismatched_charge[mcp_index].push_back( hit->Integral() );
 				}
 			}
-			
+			pfp_track.clear();
+			mcp_track.clear();
 		} //tracklist
 	       }//is clustered
+	       cluster_hits.clear();
 	//is it clustered?
 	//is it attached to a track?
 	//are those the right track and the right cluster?
@@ -916,7 +928,17 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 
   recoTree->Fill();
   } //MCtruth
-  
+
+  //clean memory
+   pfpList.clear();
+   trackList.clear();
+   showerList.clear();
+   mcList.clear();
+   mcTruth.clear();
+   clusterList.clear();
+   hitList.clear();
+   mcHitList.clear();
+   simChannelList.clear();
 
 }
 

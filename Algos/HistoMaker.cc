@@ -389,6 +389,7 @@ void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos,
     }
 
     count_not_tracked = 0;
+    low_protons = 0;
     count_tracked = 0;
     is_lowmomentum_p = false;
     for (unsigned j=0; j<event_store->fpdg.size(); j++) {
@@ -489,7 +490,9 @@ void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos,
 	}
 
 	if ( event_store->fmuon_residual.size() != event_store->fmuon_dqdx.size()) std::cout << "ERROR on calorimetry vector sizes!!!" << std::endl;
-	if ( count_not_tracked == 0 && count_tracked > 0 ) { //all protons are tracked 
+
+	//if ( count_not_tracked == 0 && count_tracked > 0 ) { //all protons are tracked 
+	if ( count_not_tracked == 0 && low_protons == 0) { //all protons are tracked 
 		for (unsigned jj=1; jj<event_store->fmuon_dqdx.size()-1; jj++) {
 				if ( event_store->fmuon_range - event_store->fmuon_residual[jj] < 8 ) { //look at 8cm only
 				h_dqdx_1d_not_merged->Fill(event_store->fmuon_dqdx[jj]);
@@ -666,7 +669,7 @@ void HistoMaker::FillCumulativeHistograms() {
 
 
     for (long ii=1; ii<1000;ii++) {
-    int start_window = (ii-80) >=1 ? (ii-80) : 1;//units are mm
+    int start_window = (ii-20) >=1 ? (ii-20) : 1;//units are mm
     TH1D* h = h_dqdx_not_merged->ProjectionY("h",1,ii);
     h_dqdx_tailtotot_length_not_merged->Fill(  ii, h->Integral(low_edge,high_edge)/h->Integral(1,high_edge) );
     h = h_dqdx_not_merged->ProjectionY("h",start_window,ii);

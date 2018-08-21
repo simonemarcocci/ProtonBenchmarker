@@ -508,6 +508,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	event_store->freco_mcp_collection_hits[itt - event_store->fg4_id.begin() ] =  n_collection_hits ;
 	event_store->freco_mcp_collection_charge[itt - event_store->fg4_id.begin()] = total_hit_charge ;
 	}
+	hits_mcp.clear();
    }
 
    if ( fWriteHistograms ) 
@@ -591,7 +592,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	event_store->freco_track_collection_hits[ &thisTrack - &trackList[0] ] = n_collection_hits;
 	event_store->freco_track_collection_charge[ &thisTrack - &trackList[0] ] = total_hit_charge;
 	
-
+	hits_tracks.clear();
     } else { //MC part
     //std::cout << "SIZE GHOST_FROM_PFP " << ghost_from_pfp.size() << " key " << pfps.at(0).key() << " track # " << &thisTrack - &trackList[0] << std::endl;
     std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp->at ( pfps.at(0).key() );
@@ -631,7 +632,10 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
         << std::endl;
 #endif
     auto it_found = std::find( event_store->fg4_id.begin(), event_store->fg4_id.end(), thisMcp->TrackId() ) ;
-    if (it_found==event_store->fg4_id.end()) mf::LogError(__FUNCTION__) << "ERROR!!! Matched particle not found!" << std::endl;
+    if (it_found==event_store->fg4_id.end()) {
+	    mf::LogWarning(__FUNCTION__) << "ERROR!!! Matched particle not found!" << std::endl;
+	    continue;
+    }
     size_t pos = it_found - event_store->fg4_id.begin();
 
     //save information on reco track
@@ -697,7 +701,11 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	event_store->freco_track_collection_hits[pos] = n_collection_hits;
 	event_store->freco_track_collection_charge[pos] = total_hit_charge;
  	
+	hits_tracks.clear();
     	}//MCParticle
+    	
+    	mcps.clear();	
+	ghosts.clear();
     } //else of fIsData
 
 	if ( is_muon ) { //for the muon, only when there is the info
@@ -715,7 +723,8 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 		}
 	event_store->fmuon_range = calos.at( geo::kCollection )->Range();
 	}
-    
+  calos.clear();
+  pfps.clear();
   }//Tracks
 
   
@@ -765,7 +774,10 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
         << std::endl;
 #endif
     auto it_found = std::find( event_store->fg4_id.begin(), event_store->fg4_id.end(), thisMcp->TrackId() ) ;
-    if (it_found==event_store->fg4_id.end()) mf::LogError(__FUNCTION__) << "ERROR!!! Matched particle not found!" << std::endl;
+    if (it_found==event_store->fg4_id.end()) {
+	    mf::LogWarning(__FUNCTION__) << "ERROR!!! Matched particle not found!" << std::endl;
+	    continue;
+    }
     size_t pos = it_found - event_store->fg4_id.begin();
 	
 
@@ -790,6 +802,9 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
     mcp_showers_ids.push_back(event_store->fg4_id[pos]);
  	
     }//MCParticle
+    pfp_shower.clear();
+    ghosts.clear();
+    mcps.clear();
         
   }//Shower
 
@@ -831,7 +846,9 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	  event_store->freco_vertex_x[ mc_pos ] = xyzz[0];
 	  event_store->freco_vertex_y[ mc_pos ] = xyzz[1];
 	  event_store->freco_vertex_z[ mc_pos ] = xyzz[2];
+	  track_pfp.clear();
 	  }
+	  vertex_pfp.clear();
   }
 
   
@@ -881,7 +898,9 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	  //freco_vertexfitter_chi2[ mc_pos ] = vertexfitter_pfp[0]->chi2(); 
 	  event_store->freco_vertexfitter_chi2ndf[ mc_pos ] = -1; 
 	  event_store->freco_vertexfitter_chi2[ mc_pos ] = -1; 
+	  track_pfp.clear();
 	  }
+	  vertexfitter_pfp.clear();
   } //pfpList
   } //is vertex fitter
 
@@ -1008,6 +1027,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 			std::vector< art::Ptr <recob::PFParticle> > pfp_cluster = pfpFromCluster.at( &cluster - &clusterList[0] );
 			if (pfp_cluster.size()!=1) std::cout << "MORE THAN 1 PFP! size=" << pfp_cluster.size() << std::endl;
 			if ( pfp_cluster.size()!=0 ) pfp_id = pfp_cluster[0]->Self();
+			pfp_cluster.clear();
 			}
 			
 			//associate the pfp to the tracks
@@ -1062,14 +1082,19 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 		                      event_store->fclustered_mismatched_charge[mcp_index].push_back( hit->Integral() );
 				}
 			}
-			
+			pfp_track.clear();
+			ghosts.clear();
+			mcp_track.clear();
 		} //tracklist
+		cluster_hits.clear();
 	       }//is clustered
 	//is it clustered?
 	//is it attached to a track?
 	//are those the right track and the right cluster?
 	//check protons and merged protons
-
+	
+	       mcparticle_hits.clear();
+	       spacepoint_hits.clear();
   } // loop on hits
   
   //make hit plots
