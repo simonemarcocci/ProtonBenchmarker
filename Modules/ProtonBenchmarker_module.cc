@@ -476,20 +476,14 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   //I can't use thisTrack->ID() as index, because in case of Kalman Fitter failure, there could be mismatches between the number
   //of elements in the associations and the track index. So I need to index manually. 
   //There is an additional crosscheck for which the trackID must be increasing in the loop, just to be sure that nothing nasty is happening.
-  int track_id_counter = 0;
-  int previous_track_id = -1;
-
-  //int all_hits_tracks = 0;
   // loop tracks and do truth matching 
   for (auto const& thisTrack : trackList) {
     
-    std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromTracks.at(track_id_counter);
-    std::vector< art::Ptr<anab::Calorimetry> > calos = caloFromTracks.at(track_id_counter);
+    std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromTracks.at( &thisTrack - &trackList[0] );
+    std::vector< art::Ptr<anab::Calorimetry> > calos = caloFromTracks.at( &thisTrack - &trackList[0] );
 
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same track!" << std::endl;
     if (calos.size() != 3 ) mf::LogWarning(__FUNCTION__) << "Warning !!! Calorimetry info size " << calos.size() << " != 3 associated to tracks!" << std::endl;
-    if ( previous_track_id >= thisTrack->ID() ) mf::LogError(__FUNCTION__) << "ERROR! The Track ID's are not in ascending order! " << std::endl;
-
 	
     for (auto const& thisMcp : mcps){
     
@@ -573,14 +567,14 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	event_store->fmuon_range = calos.at( geo::kCollection )->Range();
 	}
     
-	auto thisMcpCleanliness = mcpsFromTracks.data(track_id_counter).at(0)->cleanliness;
-	auto thisMcpCompleteness = mcpsFromTracks.data(track_id_counter).at(0)->completeness;
+	auto thisMcpCleanliness = mcpsFromTracks.data( &thisTrack - &trackList[0] ).at(0)->cleanliness;
+	auto thisMcpCompleteness = mcpsFromTracks.data( &thisTrack - &trackList[0] ).at(0)->completeness;
 	event_store->fpurity[pos] = thisMcpCleanliness;
 	event_store->fcompleteness[pos] = thisMcpCompleteness;
 
         //check association of hits <-> tracks
 	//nhits from track
-	std::vector< art::Ptr < recob::Hit> > hits_tracks = hitsFromTracks.at( track_id_counter );
+	std::vector< art::Ptr < recob::Hit> > hits_tracks = hitsFromTracks.at(  &thisTrack - &trackList[0]  );
 	event_store->freco_track_hits[pos] = hits_tracks.size() ;
 
 	//loop over hits, and save some information for collection hits only (for now)
@@ -598,7 +592,6 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	hits_tracks.clear();	
     }//MCParticle
         
-        track_id_counter++;
 	mcps.clear();
 	calos.clear();
   }//Tracks
@@ -606,19 +599,12 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 
   //checks on showers
   //I am indexing showers manually because I am lazy and I am copying what I did for tracks
-  int shower_id_counter = 0;
-  int previous_shower_id = -1;
   std::vector<int> mcp_showers_ids;
-
-  //int all_hits_tracks = 0;
-  // loop tracks and do truth matching 
   for (auto const& thisShower : showerList) {
     
-    std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromShowers.at(shower_id_counter);
+    std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromShowers.at( &thisShower - &showerList[0] );
 
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same shower!" << std::endl;
-    if ( previous_shower_id >= thisShower->ID() ) mf::LogError(__FUNCTION__) << "ERROR! The Shower ID's are not in ascending order! " << std::endl;
-
 	
     for (auto const& thisMcp : mcps){
     
@@ -647,7 +633,6 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	
 
     //save information on reco track
-    if (event_store->fis_tracked[pos] == true ) std::cout << "Tracked particle matched to a shower?!?! >>>>>> SEEMS WRONG!!!" << std::endl;
     std::cout << "FOUND A SHOWER!!! >>>>>>>>> pdg=" << thisMcp->PdgCode() << std::endl;
     event_store->fshower_pdg[pos] = thisMcp->PdgCode();
     
@@ -668,11 +653,10 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
  	
     }//MCParticle
         
-        shower_id_counter++;
 	mcps.clear();
   }//Shower
 
-	
+ 	mcp_showers_ids.clear();	
 
 
   //----------------------------
@@ -685,7 +669,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	  std::vector< art::Ptr <recob::Vertex> > vertex_pfp = vertexFromPfp.at( &pfp - &pfpList[0] );
 	  
 	  if ( vertex_pfp.size()==0 ) continue; //no vertex
-	  if ( vertex_pfp.size()>1 ) mf::LogError(__FUNCTION__) << "ERROR! There should be only 1 vertex per PFP!" <<std::endl;
+	  if ( vertex_pfp.size()>1 ) mf::LogError(__FUNCTION__) << "ERROR! There should be only 1 vertex per PFP! Considering only the first one..." <<std::endl;
 	  double xyzz[3];
 	  vertex_pfp[0]->XYZ(xyzz);
 	  
@@ -727,7 +711,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	  std::vector< art::Ptr <recob::Vertex> > vertexfitter_pfp = vertexfitterFromPfp.at( &pfp - &pfpList[0] );
 	  
 	  if ( vertexfitter_pfp.size()==0 ) continue; //no vertex
-	  if ( vertexfitter_pfp.size()>1 ) mf::LogError(__FUNCTION__) << "Vertex Fitter: ERROR! There should be only 1 vertex per PFP!" <<std::endl;
+	  if ( vertexfitter_pfp.size()>1 ) mf::LogError(__FUNCTION__) << "Vertex Fitter: ERROR! There should be only 1 vertex per PFP! Considering only the first one..." <<std::endl;
 	  double xyzz[3];
 	  vertexfitter_pfp[0]->XYZ(xyzz);
 	  
@@ -781,6 +765,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	  //only care at collection for now
 	if ( hit->View() != geo::kW ) continue;
 	std::vector< art::Ptr <simb::MCParticle> > mcparticle_hits = MCPfromhits.at( &hit - &hitList[0] );
+	if (  mcparticle_hits.size() == 0 ) continue; 
 	std::vector< art::Ptr <recob::SpacePoint> > spacepoint_hits = spacepointFromHits.at( &hit - &hitList[0] );
 	art::ServiceHandle<geo::Geometry> geom;
 	std::vector<double> xyz = { 0, 0, 0};
@@ -800,8 +785,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	}
    	 
 	//std::cout << "size2 " <<  mcparticle_hits.size() << std::endl;
-	if (  mcparticle_hits.size() == 0 ) continue; 
-	unsigned index = 0;
+	int index = -1;
 	for (unsigned jj=0; jj<mcparticle_hits.size(); jj++) {
 			bool is_max = MCPfromhits.data( &hit - &hitList[0] ).at( jj )->isMaxIDE;
 			if ( is_max ) {
@@ -812,9 +796,8 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 
 //	std::cout << "INDEX " << index << std::endl;
 
-	if ( index >= mcparticle_hits.size() ) {
-		mf::LogError(__FUNCTION__) << ">>>>>ERROR!!!!! There should always be 1 MCP associated to the hit! " << mcparticle_hits.size() << std::endl;
-		exit (-1);
+	if ( index == -1 ) {
+		throw cet::exception("Error") << ">>>>>ERROR!!!!! There should always be 1 MCP associated to the hit! " << mcparticle_hits.size() << std::endl;
 	}
 
 	int trackid = mcparticle_hits[index]->TrackId();
@@ -854,8 +837,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	       std::vector< art::Ptr <recob::Cluster>> cluster_hits = clustersFromHits.at(  &hit - &hitList[0] );
 	       if ( cluster_hits.size() > 3) {
 		       //std::cout << ">>>>>>>>>>>>>>>>>>>>>>>" << clustersFromHits.size() << std::endl;
-		       mf::LogError(__FUNCTION__) << "Number of clusters must be maximum one!!!" << std::endl;
-		       exit(-1);
+		       throw cet::exception("Error") << "Number of clusters must be maximum one!!!" << std::endl;
 	       }
 
 
@@ -872,7 +854,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	       } else { //in this case the hit is clustered
 			unsigned cluster_index = 0;
 			for ( unsigned zz=0; zz<cluster_hits.size(); zz++) {
-				if ( cluster_hits[zz]->View() == geo::kW ) cluster_index = zz;
+				if ( cluster_hits[zz]->View() == geo::kW ) cluster_index = zz;  //get collection plane ones
 			}
 		       
 			event_store->fclustered[mcp_index] = event_store->fclustered[mcp_index] + 1;
@@ -885,8 +867,9 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 			for ( auto const& cluster : clusterList) {
 			if ( cluster->ID() != cluster_ID ) continue; //select the cluster I am interested in
 			std::vector< art::Ptr <recob::PFParticle> > pfp_cluster = pfpFromCluster.at( &cluster - &clusterList[0] );
+			if (pfp_cluster.size()==0) continue;
 			if (pfp_cluster.size()!=1) std::cout << "MORE THAN 1 PFP! size=" << pfp_cluster.size() << std::endl;
-			if ( pfp_cluster.size()!=0 ) pfp_id = pfp_cluster[0]->Self();
+			else pfp_id = pfp_cluster[0]->Self();
 			pfp_cluster.clear();
 			}
 			
@@ -901,9 +884,11 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 					purityy = mcpsFromTracks.data( &track - &trackList[0] ).at( nn )->cleanliness;
 					mm = nn;
 				}
-				//std::cout << "SONO QUA 2" << std::endl;
 			}
-			if (pfp_track.size()==0) std::cout << ">>>>>>>>SHOWER!!!!!!!!!!!!!!" << std::endl;
+			if (pfp_track.size()==0 || mcp_track.size()==0) {
+			 	continue;
+			}
+
 			if (pfp_track.size()!=1) std::cout << "MORE THAN 1 PFP per track!" << std::endl;
 			if ( pfp_track[0]->Self() != pfp_id ) continue;
 			//std::cout << "FOUND PFP" << std::endl;
@@ -911,7 +896,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 			//fpdg[mcp_index] is the particle truth matched to the hit
 			//mcp_track[mm] is the particle matched to the track associated to the cluster (to which the hit is clustered)
 			if ( !event_store->fis_tracked[mcp_index] && track->ID() == event_store->freco_trackid[mcp_index] )
-				mf::LogError(__FUNCTION__) << "ERROR! This should never happen..." << std::endl;
+				throw cet::exception("Line916") << "ERROR! This should never happen..." << std::endl;
 			
 			if ( track->ID() == event_store->freco_trackid[mcp_index] ) {
 					//the hit and track matching agree
@@ -939,9 +924,10 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	//is it attached to a track?
 	//are those the right track and the right cluster?
 	//check protons and merged protons
-			cluster_hits.clear();
+	cluster_hits.clear();
 	mcparticle_hits.clear();
 	spacepoint_hits.clear();
+
   } // loop on hits
   
   //make hit plots

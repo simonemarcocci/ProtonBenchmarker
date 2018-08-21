@@ -155,8 +155,10 @@ void recohelper::UBXSecBenchmarker::beginJob()
   histo_maker->Init_Hit(  hits_dir );
   }
 
+  int bufsize    = 16000;
+  int splitlevel = 99;
   // define branches
-  recoTree->Branch("stored", &event_store);
+  recoTree->Branch("stored", &event_store, bufsize, splitlevel);
 
   n_events = 0;
 
@@ -220,8 +222,6 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   //get the ghost
   art::Handle<std::vector<ubana::MCGhost>> ghost_h;
   e.getByLabel(fTrackTruthLabel, ghost_h);
-  std::vector<art::Ptr<ubana::MCGhost>> ghostList;
-  art::fill_ptr_vector(ghostList, ghost_h);
   
   
   //neutrino vertex candidate
@@ -497,17 +497,13 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
   //I can't use thisTrack->ID() as index, because in case of Kalman Fitter failure, there could be mismatches between the number
   //of elements in the associations and the track index. So I need to index manually. 
   //There is an additional crosscheck for which the trackID must be increasing in the loop, just to be sure that nothing nasty is happening.
-  int track_id_counter = 0;
-  int previous_track_id = -1;
 
   //int all_hits_tracks = 0;
   // loop tracks and do truth matching 
   for (auto const& thisTrack : trackList) {
-   
    std::vector< art::Ptr<recob::PFParticle> > pfps = pfpFromTrack.at ( &thisTrack - &trackList[0] );
     if ( pfps.size() != 1 )
-	    throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1 or 0.";
-    //std::cout << "SIZE GHOST_FROM_PFP " << ghost_from_pfp.size() << " key " << pfps.at(0).key() << " track # " << &thisTrack - &trackList[0] << std::endl;
+	    throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1.";
     std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at ( pfps.at(0).key() );
     if ( ghosts.size() == 0 ) {
 	    std::cout << "The number of ghosts is zero for a track. Warning!!!" << std::endl;
@@ -521,8 +517,6 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same track!" << std::endl;
     if (mcps.size() == 0 ) mf::LogError(__FUNCTION__) << "ERROR!! No MCP associated with track !!!" << std::endl;
     if (calos.size() != 3 ) mf::LogWarning(__FUNCTION__) << "Warning !!! Calorimetry info size " << calos.size() << " != 3 associated to tracks!" << std::endl;
-    if ( previous_track_id >= thisTrack->ID() ) mf::LogError(__FUNCTION__) << "ERROR! The Track ID's are not in ascending order! " << std::endl;
-
 	
     for (auto const& thisMcp : mcps){
     
@@ -609,14 +603,14 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	event_store->fmuon_range = calos.at( geo::kCollection )->Range();
 	}
     
-	auto thisMcpCleanliness = 0;//mcpsFromTracks.data(track_id_counter).at(0)->cleanliness; //not supported here
-	auto thisMcpCompleteness = 0;//mcpsFromTracks.data(track_id_counter).at(0)->completeness; //not supported here
+	auto thisMcpCleanliness = 0;//mcpsFromTracks.data( &thisTrack - &trackList[0] ).at(0)->cleanliness; //not supported here
+	auto thisMcpCompleteness = 0;//mcpsFromTracks.data( &thisTrack - &trackList[0] ).at(0)->completeness; //not supported here
 	event_store->fpurity[pos] = thisMcpCleanliness;
 	event_store->fcompleteness[pos] = thisMcpCompleteness;
 
         //check association of hits <-> tracks
 	//nhits from track
-	std::vector< art::Ptr < recob::Hit> > hits_tracks = hitsFromTracks.at( track_id_counter );
+	std::vector< art::Ptr < recob::Hit> > hits_tracks = hitsFromTracks.at(  &thisTrack - &trackList[0]  );
 	event_store->freco_track_hits[pos] = hits_tracks.size() ;
 
 	//loop over hits, and save some information for collection hits only (for now)
@@ -634,24 +628,16 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	
     }//MCParticle
         
-        track_id_counter++;
   }//Tracks
   
 
   //checks on showers
-  //I am indexing showers manually because I am lazy and I am copying what I did for tracks
-  int shower_id_counter = 0;
-  int previous_shower_id = -1;
   std::vector<int> mcp_showers_ids;
-
-  //int all_hits_tracks = 0;
-  // loop tracks and do truth matching 
-  //std::cout << "NUMBER OF SHOWERS " << showerList.size() << std::endl;
   for (auto const& thisShower : showerList) {
     
     std::vector< art::Ptr<recob::PFParticle> > pfp_shower = pfpFromShower.at ( &thisShower - &showerList[0] );
     if ( pfp_shower.size() != 1 )
-	throw cet::exception("LogicError") << "the number of matched PFPs to tracks must be 1.";
+	throw cet::exception("LogicError") << "the number of matched PFPs to showers must be 1.";
     std::vector< art::Ptr<ubana::MCGhost> > ghosts = ghost_from_pfp.at ( pfp_shower.at(0).key() );
     if ( ghosts.size() == 0 ) {
 	    std::cout << "Warning! No ghost for this shower! " << std::endl;
@@ -659,10 +645,9 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
     }
     if ( ghosts.size() != 1 )
  	throw cet::exception("LogicError") << "the number of ghosts per PFP must be 1 instead of " << ghosts.size();
+    
     std::vector< art::Ptr<simb::MCParticle> > mcps = mcp_from_ghost.at( ghosts.at(0).key()  );
-
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same shower!" << std::endl;
-    if ( previous_shower_id >= thisShower->ID() ) mf::LogError(__FUNCTION__) << "ERROR! The Shower ID's are not in ascending order! " << std::endl;
 	
     for (auto const& thisMcp : mcps){
     
@@ -691,7 +676,6 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	
 
     //save information on reco track
-    if (event_store->fis_tracked[pos] == true ) std::cout << "Tracked particle matched to a shower?!?! >>>>>> SEEMS WRONG!!!" << std::endl;
     std::cout << "FOUND A SHOWER!!! >>>>>>>>> pdg=" << thisMcp->PdgCode() << std::endl;
     event_store->fshower_pdg[pos] = thisMcp->PdgCode();
     
@@ -712,11 +696,11 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
  	
     }//MCParticle
         
-        shower_id_counter++;
   }//Shower
 
-	
+    mcp_showers_ids.clear(); //not used anymore after this
 
+	
 
   //----------------------------
   // Vertex
@@ -728,7 +712,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	  std::vector< art::Ptr <recob::Vertex> > vertex_pfp = vertexFromPfp.at( &pfp - &pfpList[0] );
 	  
 	  if ( vertex_pfp.size()==0 ) continue; //no vertex
-	  if ( vertex_pfp.size()>1 ) mf::LogError(__FUNCTION__) << "ERROR! There should be only 1 vertex per PFP!" <<std::endl;
+	  if ( vertex_pfp.size()>1 ) mf::LogError(__FUNCTION__) << "ERROR! There should be only 1 vertex per PFP! Considering only the first one..." <<std::endl;
 	  double xyzz[3];
 	  vertex_pfp[0]->XYZ(xyzz);
 	  
@@ -768,7 +752,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	  std::vector< art::Ptr <recob::Vertex> > vertexfitter_pfp = vertexfitterFromPfp.at( &pfp - &pfpList[0] );
 	  
 	  if ( vertexfitter_pfp.size()==0 ) continue; //no vertex
-	  if ( vertexfitter_pfp.size()>1 ) mf::LogError(__FUNCTION__) << "Vertex Fitter: ERROR! There should be only 1 vertex per PFP!" <<std::endl;
+	  if ( vertexfitter_pfp.size()>1 ) mf::LogError(__FUNCTION__) << "Vertex Fitter: ERROR! There should be only 1 vertex per PFP! Considering only the first one..." <<std::endl;
 	  double xyzz[3];
 	  vertexfitter_pfp[0]->XYZ(xyzz);
 	  
@@ -805,7 +789,6 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 
 
   //std::cout << "NEUTRINO " <<  fnu_reco_x << " " << fnu_reco_y << " " << fnu_reco_z << std::endl;
-	std::cout << "NEUTRINO " << std::endl;
 
   int muon_pos;
   histo_maker->Fill_Analysis_Histos( event_store, muon_pos, fWriteHistograms); //plots tracking and vertexing information
@@ -821,6 +804,8 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	  //only care at collection for now
 	if ( hit->View() != geo::kW ) continue;
 	std::vector< art::Ptr <simb::MCParticle> > mcparticle_hits = MCPfromhits.at( &hit - &hitList[0] );
+	if (  mcparticle_hits.size() == 0 ) continue; 
+	
 	std::vector< art::Ptr <recob::SpacePoint> > spacepoint_hits = spacepointFromHits.at( &hit - &hitList[0] );
 	art::ServiceHandle<geo::Geometry> geom;
 	std::vector<double> xyz = { 0, 0, 0};
@@ -840,8 +825,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	}
    	 
 	//std::cout << "size2 " <<  mcparticle_hits.size() << std::endl;
-	if (  mcparticle_hits.size() == 0 ) continue; 
-	unsigned index = 0;
+	int index = -1;
 	for (unsigned jj=0; jj<mcparticle_hits.size(); jj++) {
 			bool is_max = MCPfromhits.data( &hit - &hitList[0] ).at( jj )->isMaxIDE;
 			if ( is_max ) {
@@ -850,11 +834,10 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 			}
 	}
 
-//	std::cout << "INDEX " << index << std::endl;
 
-	if ( index >= mcparticle_hits.size() ) {
+	if ( index == -1 ) {
 		mf::LogError(__FUNCTION__) << ">>>>>ERROR!!!!! There should always be 1 MCP associated to the hit! " << mcparticle_hits.size() << std::endl;
-		exit (-1);
+		continue;
 	}
 
 	int trackid = mcparticle_hits[index]->TrackId();
@@ -894,8 +877,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	       std::vector< art::Ptr <recob::Cluster>> cluster_hits = clustersFromHits.at(  &hit - &hitList[0] );
 	       if ( cluster_hits.size() > 3) {
 		       //std::cout << ">>>>>>>>>>>>>>>>>>>>>>>" << clustersFromHits.size() << std::endl;
-		       mf::LogError(__FUNCTION__) << "Number of clusters must be maximum one!!!" << std::endl;
-		       exit(-1);
+		       throw cet::exception("Error") << "Number of clusters must be maximum one!!!" << std::endl;
 	       }
 
 
@@ -912,7 +894,7 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 	       } else { //in this case the hit is clustered
 			unsigned cluster_index = 0;
 			for ( unsigned zz=0; zz<cluster_hits.size(); zz++) {
-				if ( cluster_hits[zz]->View() == geo::kW ) cluster_index = zz;
+				if ( cluster_hits[zz]->View() == geo::kW ) cluster_index = zz; //select only collection plane
 			}
 		       
 			event_store->fclustered[mcp_index] = event_store->fclustered[mcp_index] + 1;
@@ -925,8 +907,9 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 			for ( auto const& cluster : clusterList) {
 			if ( cluster->ID() != cluster_ID ) continue; //select the cluster I am interested in
 			std::vector< art::Ptr <recob::PFParticle> > pfp_cluster = pfpFromCluster.at( &cluster - &clusterList[0] );
+			if ( pfp_cluster.size() == 0) continue;
 			if (pfp_cluster.size()!=1) std::cout << "MORE THAN 1 PFP! size=" << pfp_cluster.size() << std::endl;
-			if ( pfp_cluster.size()!=0 ) pfp_id = pfp_cluster[0]->Self();
+			else pfp_id = pfp_cluster[0]->Self();
 			}
 			
 			//associate the pfp to the tracks
@@ -953,7 +936,6 @@ void recohelper::UBXSecBenchmarker::analyze(art::Event const & e)
 			//	}
 			//	//std::cout << "SONO QUA 2" << std::endl;
 			//}
-			if (pfp_track.size()==0) std::cout << ">>>>>>>>SHOWER!!!!!!!!!!!!!!" << std::endl;
 			if (pfp_track.size()!=1) std::cout << "MORE THAN 1 PFP per track!" << std::endl;
 			if ( pfp_track[0]->Self() != pfp_id ) continue;
 			//std::cout << "FOUND PFP" << std::endl;
