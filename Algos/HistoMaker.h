@@ -11,6 +11,7 @@
 #include "TLorentzVector.h"
 #include "TH1.h"
 #include "TH2.h"
+#include "TRandom3.h"
 
 // cc includes
 #include <numeric>
@@ -30,6 +31,7 @@ namespace reco_histo{
     public:
 	
 	    HistoMaker( bool isVerbose = false ){
+		    gRandom = new TRandom3(0);
 		    is_init = false;
 		    is_init_hit = false;
     	 	    low_edge = 350;
@@ -147,8 +149,8 @@ namespace reco_histo{
    TH2D* h_dqdx_tailtotot_length_not_merged;
    TH2D* h_dqdx_tailtotot_length_merged_window;
    TH2D* h_dqdx_tailtotot_length_not_merged_window;
-   TH2D* h_dqdx_tailtotot_length;
    TH2D* h_dqdx_tailtotot_length_window;
+   TH2D* h_dqdx_tailtotot_length;
    TH1D* htail_to_tot_low_protons;
    TH1D* htail_to_tot_merged;
    TH1D* htail_to_tot_not_merged;

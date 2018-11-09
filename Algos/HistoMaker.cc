@@ -73,10 +73,10 @@ void HistoMaker::Init( art::ServiceHandle< art::TFileService > tfs ) {
    h_dqdx_1d_not_merged = tfs->make<TH1D>("dqdx_1d_not_merged","dq/dx integrated in (0,8cm) when protons are not merged; dq/dx (ADC);",1500,0,1500);
    h_dqdx_tailtotot_length_merged = tfs->make<TH2D>("dqdx_tailtotot_length_merged","Tail to tot vs length for merged tracks; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
    h_dqdx_tailtotot_length_not_merged = tfs->make<TH2D>("dqdx_tailtotot_length_not_merged","Tail to tot vs length for merged tracks; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
-   h_dqdx_tailtotot_length_merged_window = tfs->make<TH2D>("dqdx_tailtotot_length_merged_window","Tail to tot vs length for merged tracks w/ 1cm moving window; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
-   h_dqdx_tailtotot_length_not_merged_window = tfs->make<TH2D>("dqdx_tailtotot_length_not_merged_window","Tail to tot vs length for merged tracks w/ 1cm moving window; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
-   h_dqdx_tailtotot_length_window = tfs->make<TH2D>("dqdx_tailtotot_length_window","Tail to tot vs length for all tracks w/ 1cm moving window; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
+   h_dqdx_tailtotot_length_merged_window = tfs->make<TH2D>("dqdx_tailtotot_length_merged_window","Tail to tot vs length for merged tracks with 4cm moving window; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
+   h_dqdx_tailtotot_length_not_merged_window = tfs->make<TH2D>("dqdx_tailtotot_length_not_merged_window","Tail to tot vs length for merged tracks with 4cm moving window; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
    h_dqdx_tailtotot_length = tfs->make<TH2D>("dqdx_tailtotot_length","Tail to tot vs length for all tracks; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
+   h_dqdx_tailtotot_length_window = tfs->make<TH2D>("dqdx_tailtotot_window","Tail to tot vs length for all tracks w/ moving window; Integration Length (mm); Tail to tot",1000,0,1000,1000,0,1);
    htail_to_tot_low_protons = tfs->make<TH1D>("tailtotot_low_protons","Tail to tot w/ low energy protons; Tail to tot;",1000,0,1); // tail to tot merged
    htail_to_tot_merged = tfs->make<TH1D>("tailtotot_merged","Tail to tot w/ merged protons; Tail to tot;",100,0,100); // tail to tot merged
    htail_to_tot_not_merged = tfs->make<TH1D>("tailtotot_not_merged","Tail to tot w/ good protons; Tail to tot;",100,0,100); // tail to tot not merged
@@ -299,23 +299,10 @@ void HistoMaker::Fill_Truth_Histos( StoredEvent* event_store ) {
 	if ( event_store->fpdg[ii] == 2212 ) count_protons++;
 	if ( event_store->fpdg[ii] == 2212 && event_store->fkinE[ii] >= 0.02 ) count_protons_above++;
 	if ( event_store->fpdg[ii] == 2212 && event_store->fkinE[ii] < 0.02 ) count_protons_below++;
-
-    	if ( event_store->fis_shower_matched[ii] == true ) {
-    		h_shower_pdg->Fill( event_store->fshower_pdg[ii] );
-    			if ( event_store->fpdg[ii] == 2212 ) { //protons
-	    			h_shower_proton_l->Fill( event_store->flength[ii] );
-	    			h_shower_proton_kinE->Fill( event_store->fkinE[ii] );
-	    			h_shower_proton_nhits->Fill( event_store->fnhits[ii] );
-	    			h_shower_proton_costheta_muon->Fill( event_store->fcostheta_muon[ii] );
-
-    			}
- 	}//is shower matched
-        
   }
 	hproton_multi_all->Fill( count_protons );
 	hproton_multi_above20MeV->Fill( count_protons_above );
 	hproton_multi_below20MeV->Fill( count_protons_below );
-  	h_n_proton_showers->Fill( event_store->fcount_proton_showers );
 }
 
 
@@ -333,7 +320,21 @@ void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos,
     bool reco_muon = false;
     bool is_pion=false;
     bool lowmomentum_p = false;
+    //std::cout << "PROTON SHOWERS : " << event_store->fcount_proton_showers << std::endl;
+    h_n_proton_showers->Fill( event_store->fcount_proton_showers );
     for (unsigned i = 0; i < event_store->fpdg.size(); i++) {
+	//truth for showers needs to be here! since the analysis is done later in protonbenchmarker
+    	if ( event_store->fis_shower_matched[i] == true ) {
+    		h_shower_pdg->Fill( event_store->fshower_pdg[i] );
+    			if ( event_store->fpdg[i] == 2212 ) { //protons
+	    			h_shower_proton_l->Fill( event_store->flength[i] );
+	    			h_shower_proton_kinE->Fill( event_store->fkinE[i] );
+	    			h_shower_proton_nhits->Fill( event_store->fnhits[i] );
+	    			h_shower_proton_costheta_muon->Fill( event_store->fcostheta_muon[i] );
+
+    			}
+ 	}//is shower matched
+        
 	    if ( event_store->fpdg[i] == 13 ) { //ismuon
 	    if (write_histos) {
 	    hmuon_length_all->Fill( event_store->flength[i] );
@@ -368,6 +369,10 @@ void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos,
 	    }
     }
     
+    /* //FIXME
+    if ( reco_muon == true && event_store->fp0[muon_pos] < 0.5 ){ //decide if keeping it
+	if (gRandom->Rndm() > -4*event_store->fp0[muon_pos]*event_store->fp0[muon_pos]+4*event_store->fp0[muon_pos]) return; //APPLY EFFICIENCYY
+    } */
     if ( reco_muon == false || !write_histos ) return; //select events with a reco muon or quit if you don't want to write histograms
     
     //check if the neutrino reco'ed vertex is there 
@@ -380,6 +385,7 @@ void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos,
 
     count_not_tracked = 0;
     count_tracked = 0;
+    low_protons = 0;
     is_lowmomentum_p = false;
     for (unsigned j=0; j<event_store->fpdg.size(); j++) {
 	    if ( !reco_muon ) break; //select events with a reco muon
@@ -451,6 +457,12 @@ void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos,
 		count_not_tracked++;
 		h_pmu_end_not_tracked->Fill( event_store->flength[j] * sqrt( 1 - pow( event_store->fcostheta_muon[j] ,2 ) ) ) ;
 		h_theta_mu_not_tracked->Fill ( event_store->fcostheta_muon[j] ) ;
+		if ( event_store->fkinE[j] > 0.15 ) 
+			std::cout << "NOT TRACKED proton with HIGH energy" << std::endl;
+		else if ( std::abs( event_store->fcostheta_muon[j] ) > sqrt(3)/2. )  //theta < 30degrees
+			std::cout << "NOT TRACKED proton COLLINEAR" << std::endl;
+		else 
+			std::cout << "NOT TRACKED proton ORTHOGONAL" << std::endl;
 		}
     	else if ( event_store->fis_tracked[j] ) {
 		count_tracked++;
@@ -591,27 +603,29 @@ if (count_not_tracked && isVerbose) {
 void HistoMaker::FillCumulativeHistograms() {
 
 
-    for (long ii=1; ii<1000;ii++) {
-    int start_window = (ii-80) >=1 ? (ii-80) : 1;//units are mm
-    TH1D* h = h_dqdx_not_merged->ProjectionY("h",1,ii);
+    for (long ii=2; ii<1000;ii++) {
+    int start_window = (ii-80) >=2 ? (ii-80) : 1;//units are mm
+    TH1D* h = h_dqdx_not_merged->ProjectionY("h",2,ii);
     h_dqdx_tailtotot_length_not_merged->Fill(  ii, h->Integral(low_edge,high_edge)/h->Integral(1,high_edge) );
     h = h_dqdx_not_merged->ProjectionY("h",start_window,ii);
     h_dqdx_tailtotot_length_not_merged_window->Fill(  ii, h->Integral(low_edge,high_edge)/h->Integral(1,high_edge) );
     
-    h = h_dqdx_merged->ProjectionY("h",1,ii);
+    h = h_dqdx_merged->ProjectionY("h",2,ii);
     h_dqdx_tailtotot_length_merged->Fill(  ii,  h->Integral(low_edge,high_edge)/h->Integral(1,high_edge));
     h = h_dqdx_merged->ProjectionY("h",start_window,ii);
     h_dqdx_tailtotot_length_merged_window->Fill(  ii,  h->Integral(low_edge,high_edge)/h->Integral(1,high_edge));
     
-    h = h_dqdx_merged->ProjectionY("h",1,ii);
-    h->Add( h_dqdx_not_merged->ProjectionY("h",1,ii) );
+    h = h_dqdx_merged->ProjectionY("h",2,ii);
+    h->Add( h_dqdx_not_merged->ProjectionY("h",2,ii) );
     h_dqdx_tailtotot_length->Fill(  ii, h->Integral(low_edge,high_edge)/h->Integral(1,high_edge) );
     h = h_dqdx_merged->ProjectionY("h",start_window,ii);
     h->Add( h_dqdx_not_merged->ProjectionY("h",start_window,ii) );
     h_dqdx_tailtotot_length_window->Fill(  ii, h->Integral(low_edge,high_edge)/h->Integral(1,high_edge) );
     }
 
+
 }
+
 
 void HistoMaker::Fill_Hit_Histos( StoredEvent* event_store ) {
   

@@ -1,4 +1,5 @@
 #include "services_microboone_simulation.fcl"
+#include "services_microboone.fcl"
 #include "MCTruthProducer.fcl"
 
 process_name: mctruthproducer
@@ -8,6 +9,7 @@ services:
 
   TFileService:   {fileName: "mctruth_%tc.root"}
   @table::microboone_simulation_services
+  @table::microboone_services
 
 } # services
 
