@@ -76,6 +76,7 @@ void StoredEvent::AllocateRecoVectors() {
 
 
 void StoredEvent::ClearVectors(){
+    fcount_proton_showers = 0;
     fmuon_dqdx.clear();
     fmuon_dedx.clear();
     fmuon_residual.clear();

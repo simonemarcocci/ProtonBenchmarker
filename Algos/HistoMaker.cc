@@ -299,23 +299,10 @@ void HistoMaker::Fill_Truth_Histos( StoredEvent* event_store ) {
 	if ( event_store->fpdg[ii] == 2212 ) count_protons++;
 	if ( event_store->fpdg[ii] == 2212 && event_store->fkinE[ii] >= 0.02 ) count_protons_above++;
 	if ( event_store->fpdg[ii] == 2212 && event_store->fkinE[ii] < 0.02 ) count_protons_below++;
-
-    	if ( event_store->fis_shower_matched[ii] == true ) {
-    		h_shower_pdg->Fill( event_store->fshower_pdg[ii] );
-    			if ( event_store->fpdg[ii] == 2212 ) { //protons
-	    			h_shower_proton_l->Fill( event_store->flength[ii] );
-	    			h_shower_proton_kinE->Fill( event_store->fkinE[ii] );
-	    			h_shower_proton_nhits->Fill( event_store->fnhits[ii] );
-	    			h_shower_proton_costheta_muon->Fill( event_store->fcostheta_muon[ii] );
-
-    			}
- 	}//is shower matched
-        
   }
 	hproton_multi_all->Fill( count_protons );
 	hproton_multi_above20MeV->Fill( count_protons_above );
 	hproton_multi_below20MeV->Fill( count_protons_below );
-  	h_n_proton_showers->Fill( event_store->fcount_proton_showers );
 }
 
 
@@ -333,7 +320,21 @@ void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos,
     bool reco_muon = false;
     bool is_pion=false;
     bool lowmomentum_p = false;
+    //std::cout << "PROTON SHOWERS : " << event_store->fcount_proton_showers << std::endl;
+    h_n_proton_showers->Fill( event_store->fcount_proton_showers );
     for (unsigned i = 0; i < event_store->fpdg.size(); i++) {
+	//truth for showers needs to be here! since the analysis is done later in protonbenchmarker
+    	if ( event_store->fis_shower_matched[i] == true ) {
+    		h_shower_pdg->Fill( event_store->fshower_pdg[i] );
+    			if ( event_store->fpdg[i] == 2212 ) { //protons
+	    			h_shower_proton_l->Fill( event_store->flength[i] );
+	    			h_shower_proton_kinE->Fill( event_store->fkinE[i] );
+	    			h_shower_proton_nhits->Fill( event_store->fnhits[i] );
+	    			h_shower_proton_costheta_muon->Fill( event_store->fcostheta_muon[i] );
+
+    			}
+ 	}//is shower matched
+        
 	    if ( event_store->fpdg[i] == 13 ) { //ismuon
 	    if (write_histos) {
 	    hmuon_length_all->Fill( event_store->flength[i] );
@@ -368,6 +369,10 @@ void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos,
 	    }
     }
     
+    /* //FIXME
+    if ( reco_muon == true && event_store->fp0[muon_pos] < 0.5 ){ //decide if keeping it
+	if (gRandom->Rndm() > -4*event_store->fp0[muon_pos]*event_store->fp0[muon_pos]+4*event_store->fp0[muon_pos]) return; //APPLY EFFICIENCYY
+    } */
     if ( reco_muon == false || !write_histos ) return; //select events with a reco muon or quit if you don't want to write histograms
     
     //check if the neutrino reco'ed vertex is there 
@@ -452,6 +457,12 @@ void HistoMaker::Fill_Analysis_Histos( StoredEvent* event_store, int & muon_pos,
 		count_not_tracked++;
 		h_pmu_end_not_tracked->Fill( event_store->flength[j] * sqrt( 1 - pow( event_store->fcostheta_muon[j] ,2 ) ) ) ;
 		h_theta_mu_not_tracked->Fill ( event_store->fcostheta_muon[j] ) ;
+		if ( event_store->fkinE[j] > 0.15 ) 
+			std::cout << "NOT TRACKED proton with HIGH energy" << std::endl;
+		else if ( std::abs( event_store->fcostheta_muon[j] ) > sqrt(3)/2. )  //theta < 30degrees
+			std::cout << "NOT TRACKED proton COLLINEAR" << std::endl;
+		else 
+			std::cout << "NOT TRACKED proton ORTHOGONAL" << std::endl;
 		}
     	else if ( event_store->fis_tracked[j] ) {
 		count_tracked++;

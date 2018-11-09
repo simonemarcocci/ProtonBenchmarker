@@ -21,6 +21,8 @@
 #include "art/Framework/Principal/SubRun.h"
 #include "art/Framework/Services/Optional/TFileService.h"
 //#include "art/Framework/IO/Root/RootInputFile.h"
+#include "art/Framework/IO/Catalog/InputFileCatalog.h"
+
 #include "canvas/Utilities/InputTag.h"
 #include "fhiclcpp/ParameterSet.h"
 #include "messagefacility/MessageLogger/MessageLogger.h"
@@ -163,7 +165,7 @@ void recohelper::ProtonBenchmarker::beginJob()
 {
 
 
-	//std::cout << ">>>>>>>" << art::RootInputFile::fileName() << std::endl;
+  //std::cout << ">>>>>>>" << art::InputFileCatalog::currentFile()->fileName() << std::endl;
   recoTree = tfs->make<TTree>("recotree", "recotree");
   event_store = new StoredEvent();
   histo_maker = new reco_histo::HistoMaker();
@@ -221,12 +223,12 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	art::FindManyP<recob::Track> trackFromPfp(pfpList, e, fPfpAssnLabel);
 	art::FindManyP<recob::Shower> showerFromPfp(pfpList, e, fPfpAssnLabel);
 	this->CollectTracksAndShowers( pfpList, trackFromPfp, showerFromPfp, trackList, showerList);
+	std::cout << "Getting CONSOLIDATED pandora data products!" << std::endl;
   } else {
   	art::fill_ptr_vector(trackList, trackHandle); 
   	art::fill_ptr_vector(showerList, showerHandle); 
   	art::fill_ptr_vector( pfpList, pfpHandle);
   }
-
 
   art::FindManyP<simb::MCParticle, anab::BackTrackerMatchingData> mcpsFromTracks(trackList, e, fTrackTruthLabel);
   art::FindManyP<anab::Calorimetry> caloFromTracks(trackList, e, fCalorimetryLabel);
@@ -600,12 +602,13 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   //checks on showers
   //I am indexing showers manually because I am lazy and I am copying what I did for tracks
   std::vector<int> mcp_showers_ids;
+  std::cout << "LOOPING over " << showerList.size() << " showers " << std::endl;
   for (auto const& thisShower : showerList) {
     
     std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromShowers.at( &thisShower - &showerList[0] );
 
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same shower!" << std::endl;
-	
+    std::cout << "Found " << mcps.size() << " MCPs for this shower " << &thisShower - &showerList[0] << std::endl;
     for (auto const& thisMcp : mcps){
     
     //this if is necessary, since sometimes a particle is matched to a secondary (electron, etc) -> to be checked
@@ -640,14 +643,14 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 	    std::cout << "Already matched to a shower!!!! Skipping." <<  std::endl;
 	    continue;
     }
-    event_store->fis_shower_matched[pos] = true;
     
+    event_store->fis_shower_matched[pos] = true;
     if ( event_store->fpdg[pos] == 2212 ) { //protons
 	    if ( std::find( mcp_showers_ids.begin(), mcp_showers_ids.end(), event_store->fg4_id[pos] ) == mcp_showers_ids.end() ) event_store->fcount_proton_showers = event_store->fcount_proton_showers + 1;
+	    std::cout << event_store->fcount_proton_showers << std::endl;
 	    std::cout << ">>>>PROTON SHOWER" << std::endl;
 	    //std::cout << ">>>>>>>FILE " << art::RootInputFile::fileName << std::endl;
 	    std::cout << "Event=" << event_store->fEvent << " Run=" << event_store->fRun << " SubRun=" << event_store->fSubRun << std::endl;
-
     }
     mcp_showers_ids.push_back(event_store->fg4_id[pos]);
  	
@@ -797,7 +800,8 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 //	std::cout << "INDEX " << index << std::endl;
 
 	if ( index == -1 ) {
-		throw cet::exception("Error") << ">>>>>ERROR!!!!! There should always be 1 MCP associated to the hit! " << mcparticle_hits.size() << std::endl;
+		std::cout << ">>>>>ERROR!!!!! There should always be 1 MCP associated to the hit! " << mcparticle_hits.size() << std::endl;
+		continue;
 	}
 
 	int trackid = mcparticle_hits[index]->TrackId();
