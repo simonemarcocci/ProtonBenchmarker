@@ -1,0 +1,20 @@
+#include "mctruthmatching_uboone.fcl"
+
+BEGIN_PROLOG
+#
+# Module configuration
+#
+MCTruthProducer: {
+  module_type:            "MCTruthProducer"
+  TrackLabel:             "pandora"
+  ShowerLabel:            "pandora"
+  PFParticleLabel:        "pandora"
+  ClusterLabel:           "pandora"
+  G4TruthLabel:           "largeant"
+  MCTruthMatching:        @local::AssociationsTruthTool
+
+}
+
+# MCTruthProducer.MCTruthMatching.TrackProducerLabel: "pandora"
+
+END_PROLOG
