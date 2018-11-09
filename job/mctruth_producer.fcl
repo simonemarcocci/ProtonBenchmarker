@@ -1,0 +1,57 @@
+#include "services_microboone_simulation.fcl"
+#include "MCTruthProducer.fcl"
+
+process_name: mctruthproducer
+
+services:
+{
+
+  TFileService:   {fileName: "mctruth_%tc.root"}
+  @table::microboone_simulation_services
+
+} # services
+
+#source is a root file
+source:
+{
+  module_type: RootInput
+  maxEvents:  100        # Number of events to create
+  saveMemoryObjectThreshold: 0
+}
+
+physics:
+{
+
+  producers:
+  {
+  	
+    MCTruthProducer: 	@local::MCTruthProducer
+  
+  }
+
+  stream1: [ out1 ]
+  reco1: [ MCTruthProducer ]
+
+  trigger_paths: [ reco1 ] 
+
+} # physics
+
+#entry in the output stream you want those to go to, where XXX is the label of the filter module(s)
+outputs:
+{
+ out1:
+ {
+   module_type: RootOutput
+   dataTier: "reconstructed"
+   compressionLevel: 1
+   saveMemoryObjectThreshold: 0
+   fileName: "%ifb_%tc_mctruth.root"
+ }
+}
+
+source.inputCommands: ["keep *_*_*_*" ]
+
+services.DetectorClocksService.InheritClockConfig: false
+services.SpaceCharge.EnableCorrSCE: true
+services.SpaceCharge.EnableSimEfieldSCE: true
+services.SpaceCharge.EnableSimSpatialSCE: true

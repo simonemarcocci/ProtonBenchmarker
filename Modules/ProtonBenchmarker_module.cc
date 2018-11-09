@@ -20,6 +20,7 @@
 #include "art/Framework/Principal/Run.h"
 #include "art/Framework/Principal/SubRun.h"
 #include "art/Framework/Services/Optional/TFileService.h"
+#include "art/Utilities/make_tool.h"
 //#include "art/Framework/IO/Root/RootInputFile.h"
 #include "canvas/Utilities/InputTag.h"
 #include "fhiclcpp/ParameterSet.h"
@@ -58,6 +59,7 @@
 #include "ubana/ProtonBenchmarker/Algos/protonBenchmarkerUtility.h"
 #include "ubana/ProtonBenchmarker/Algos/HistoMaker.h"
 #include "ubana/ProtonBenchmarker/Datatypes/StoredEvent.h"
+#include "ubana/AnalysisTree/MCTruth/IMCTruthMatching.h"
 
 //UBXSec includes
 #include "ubobj/UBXSec/SelectionResult.h"
@@ -119,7 +121,10 @@ class recohelper::ProtonBenchmarker : public art::EDAnalyzer {
     art::ServiceHandle< art::TFileService > tfs;
     TTree* recoTree;
 
-   int n_events;
+    // For keeping track of the replacement backtracker
+    std::unique_ptr<truth::IMCTruthMatching> fMCTruthMatching;
+   
+    int n_events;
 
 };
 
@@ -148,6 +153,8 @@ recohelper::ProtonBenchmarker::ProtonBenchmarker(fhicl::ParameterSet const & p)
   fMCHitLabel = p.get<std::string> ("MCHitLabel");
   fIsUBXSec = p.get<bool> ("UBXSecInput");
 
+  // Get the tool for MC Truth matching
+  fMCTruthMatching = art::make_tool<truth::IMCTruthMatching>(p.get<fhicl::ParameterSet>("MCTruthMatching"));
 }
 
 void recohelper::ProtonBenchmarker::beginJob()
@@ -185,6 +192,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   event_store->fRun    = e.run();
   event_store->fSubRun = e.subRun();
 
+  fMCTruthMatching->Rebuild(e);
 
   // get handles to objects of interest
   art::ValidHandle< std::vector<recob::Track> > trackHandle = e.getValidHandle< std::vector<recob::Track> > (fTrackLabel);

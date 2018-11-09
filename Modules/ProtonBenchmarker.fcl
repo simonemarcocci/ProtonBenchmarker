@@ -1,3 +1,5 @@
+#include "mctruthmatching_uboone.fcl"
+
 BEGIN_PROLOG
 
 ProtonBenchmarker: {
@@ -19,6 +21,7 @@ ProtonBenchmarker: {
       VertexFitterLabel: "vertexfitterpandoraNu"
       WriteHistograms: true
       UBXSecInput: false
+      MCTruthMatching: @local::BackTrackerTruthTool
 }
 
 END_PROLOG
