@@ -14,7 +14,10 @@ namespace pbutil{
     if ( (sx > 0 && sx < 256 && sy > -111.5 && sy < 111.5 && sz > 0 && sz < 1036) 
         /*|| (ex > 0 && ex < 256 && ey > -111.5 && ey < 111.5 && ez > 0 && ez < 1036)*/)
         return true;
-    else return false;
+    else {
+		std::cout << "x=" << sx << " y=" << sy << " z=" << sz << std::endl;    
+	    return false;
+    }
 
   }
   
@@ -30,7 +33,10 @@ namespace pbutil{
     if ( (sx > 0 && sx < 256 && sy > -111.5 && sy < 111.5 && sz > 0 && sz < 1036) 
         /*|| (ex > 0 && ex < 256 && ey > -111.5 && ey < 111.5 && ez > 0 && ez < 1036)*/)
         return true;
-    else return false;
+    else { 
+		std::cout << "x=" << sx << " y=" << sy << " z=" << sz << std::endl;    
+	    return false;
+    }
 
   }
   

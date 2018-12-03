@@ -290,7 +290,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
 
   //loop on all MC truth frames (mostly 1 per event)
   for ( unsigned n_truth = 0; n_truth < mcTruth.size(); n_truth++ ) {
-	  //std::cout << ">>>>>>>>>>>>>>>>>EVENT" << std::endl; 
+  std::cout << ">>>>>>>>>>>>>>>>>EVENT" << std::endl; 
   n_events++;
   event_store->ClearVectors();
 
@@ -299,7 +299,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   const simb::MCNeutrino thisNeutrino = mcTruth[n_truth]->GetNeutrino();
   const simb::MCParticle thisLepton = thisNeutrino.Lepton();
   if ( !_pbutilInstance.isInTPC( thisLepton ) ) continue;
-  
+ 	std::cout << "IN TPC " << std::endl; 
   //store the interaction info
   event_store->fccnc = thisNeutrino.CCNC();
   event_store->finteraction = thisNeutrino.InteractionType();
@@ -480,13 +480,27 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
   //There is an additional crosscheck for which the trackID must be increasing in the loop, just to be sure that nothing nasty is happening.
   // loop tracks and do truth matching 
   for (auto const& thisTrack : trackList) {
-    
+   
+	  if (!thisTrack) {std::cout << ">>>>>>>>>>>BAD TRACK!!!!!!!!!!" << std::endl; continue;}
+
     std::vector< art::Ptr<simb::MCParticle> > mcps = mcpsFromTracks.at( &thisTrack - &trackList[0] );
     std::vector< art::Ptr<anab::Calorimetry> > calos = caloFromTracks.at( &thisTrack - &trackList[0] );
 
     if (mcps.size() >1 ) mf::LogWarning(__FUNCTION__) << "Warning !!! More than 1 MCparticle associated to the same track!" << std::endl;
     if (calos.size() != 3 ) mf::LogWarning(__FUNCTION__) << "Warning !!! Calorimetry info size " << calos.size() << " != 3 associated to tracks!" << std::endl;
-	
+
+    std::cout << "NUMBER OF TRACKS: " << trackList.size() << " MCPS size " << mcps.size() << std::endl;
+#if isDebug == 1
+      std::cout << "CANDIDATE MATCHED PARTICLE: " << std::endl;
+      std::cout << "---- MCParticle Information ----"
+        << "\nTrack ID   : " << mcps.at(0)->TrackId() 
+        << "\nPdgCode    : " << mcps.at(0)->PdgCode()
+        << "\nProcess    : " << mcps.at(0)->Process()
+        << "\nStatusCode : " << mcps.at(0)->StatusCode()
+        << "\nMother Pdg : " << mcps.at(0)->Mother()
+        << "\nPx, Py, Pz : " << mcps.at(0)->Px() << ", " << mcps.at(0)->Py() << ", " << mcps.at(0)->Pz()
+        << std::endl;
+#endif
     for (auto const& thisMcp : mcps){
     
     //this if is necessary, since sometimes a particle is matched to a secondary (electron, etc) -> to be checked
@@ -537,7 +551,7 @@ void recohelper::ProtonBenchmarker::analyze(art::Event const & e)
         
         event_store->fis_tracked[pos] = true;
 	event_store->fmatch_multiplicity[pos] = event_store->fmatch_multiplicity[pos] + 1;
-	event_store->flength_reco[pos] = thisTrack->Length();
+	if (thisTrack->Length()) event_store->flength_reco[pos] = thisTrack->Length();
 	trkf::TrackMomentumCalculator trkm; //track momentum calculator
 	trkm.SetMinLength(0); //minimum track length for momentum calculation
 	event_store->freco_momentum_mcs[pos] = trkm.GetMomentumMultiScatterChi2( thisTrack );

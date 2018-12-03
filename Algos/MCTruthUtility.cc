@@ -29,11 +29,11 @@ void MCTruthUtility::FillTrackMCPVectors( std::unique_ptr<truth::IMCTruthMatchin
 	  
 	  for(size_t e = 0; e < TrackIDs.size(); ++e){
   	    if ( e==0 ) 	trkide[TrackIDs[e].trackID] = TrackIDs[e].energy;
-	    else		trkide[TrackIDs[e].trackID] += TrackIDs[e].energy;
+	    else		trkide[TrackIDs[e].trackID] = trkide[TrackIDs[e].trackID] + TrackIDs[e].energy;
 	  }
 	  for(size_t e = 0; e < eveIDs.size(); ++e){
 	  if (e==0)	trkides[eveIDs[e].trackID] = eveIDs[e].energy;
-	  else		trkides[eveIDs[e].trackID] += eveIDs[e].energy;
+	  else		trkides[eveIDs[e].trackID] = eveIDs[e].energy + trkides[eveIDs[e].trackID];
 	  }
 
 	TrackIDs.clear();
@@ -55,7 +55,9 @@ void MCTruthUtility::FillTrackMCPVectors( std::unique_ptr<truth::IMCTruthMatchin
       
       const simb::MCParticle *tmpParticle = fMCTruthMatching->TrackIDToParticle(TrackID);
       if (!tmpParticle) continue; // Retain this check that the BackTracker can find the right particle
+      if (tmpParticle->Process()!="primary") std::cout << "tmpPARTICLE PROCESS " << tmpParticle->Process() << std::endl;
       // Now, loop through the MCParticle's myself to find the correct match
+      if (tmpParticle->TrackId()!=TrackID) std::cout << "MCParticle=" << tmpParticle->TrackId() << " myTrackID=" << TrackID << std::endl;
       int mcpart_i(-1);
       for (auto const particle : *mcpartHandle){
         mcpart_i++;
@@ -66,6 +68,8 @@ void MCTruthUtility::FillTrackMCPVectors( std::unique_ptr<truth::IMCTruthMatchin
 	
       const simb::MCParticle particle = mcpartHandle.product()->at(mcpart_i);
       TrueTrackID = particle.TrackId();
+      if (TrueTrackID!=TrackID) std::cout << ">>>>>>>TrueTrackID=" << TrueTrackID << " TrackID=" << TrackID << std::endl;
+      if (particle.Process()!="primary") std::cout << "PARTICLE PROCESS " << particle.Process() << std::endl;
       
       auto diff = mcpart_i; // check I have a sensible value for this counter
       if (diff >= (int)mcpartHandle->size()){
